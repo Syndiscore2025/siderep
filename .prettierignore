@@ -1,0 +1,6 @@
+dist
+coverage
+node_modules
+public/icons
+pnpm-lock.yaml
+package-lock.json
