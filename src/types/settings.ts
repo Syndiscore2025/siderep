@@ -78,3 +78,17 @@ export function isAzureConfigured(settings: Settings): boolean {
   const { endpoint, deployment, apiKey } = settings.azure;
   return endpoint.length > 0 && deployment.length > 0 && apiKey.length > 0;
 }
+
+/**
+ * True when the endpoint is a well-formed https URL. An empty string is treated
+ * as valid (the "not yet configured" state) so we don't flag a blank field.
+ */
+export function isValidAzureEndpoint(endpoint: string): boolean {
+  const trimmed = endpoint.trim();
+  if (trimmed.length === 0) return true;
+  try {
+    return new URL(trimmed).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}

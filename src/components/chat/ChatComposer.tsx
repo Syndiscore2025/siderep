@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
-import { Button, SendIcon, Textarea } from '@/components/ui';
+import { Button, SendIcon, StopIcon, Textarea } from '@/components/ui';
 import { useChat } from '@/hooks/useChat';
 import { useSession } from '@/hooks/useSession';
 import { QUICK_ACTIONS } from '@/prompts';
@@ -9,7 +9,7 @@ import { cn } from '@/utils';
 
 export function ChatComposer() {
   const { customer, messages } = useSession();
-  const { sendMessage, isSending } = useChat();
+  const { sendMessage, stop, isSending } = useChat();
   const [draft, setDraft] = useState('');
 
   const canChat = customer !== null;
@@ -65,14 +65,22 @@ export function ChatComposer() {
           aria-label="Message"
           className="min-h-9 flex-1 border-0 bg-transparent px-1.5 py-1 shadow-none focus:border-0"
         />
-        <Button
-          variant="primary"
-          onClick={submit}
-          loading={isSending}
-          disabled={!canChat || draft.trim().length === 0}
-          icon={<SendIcon className="size-3.5" />}
-          aria-label="Send message"
-        />
+        {isSending ? (
+          <Button
+            variant="secondary"
+            onClick={stop}
+            icon={<StopIcon className="size-3.5" />}
+            aria-label="Stop generating"
+          />
+        ) : (
+          <Button
+            variant="primary"
+            onClick={submit}
+            disabled={!canChat || draft.trim().length === 0}
+            icon={<SendIcon className="size-3.5" />}
+            aria-label="Send message"
+          />
+        )}
       </div>
       <p className="mt-1.5 px-1 text-[10px] text-content-muted">
         Enter to send · Shift+Enter for a new line

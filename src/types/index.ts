@@ -32,5 +32,6 @@ export {
   DEFAULT_SETTINGS,
   parseSettings,
   isAzureConfigured,
+  isValidAzureEndpoint,
 } from './settings';
 export type { Settings, Theme } from './settings';

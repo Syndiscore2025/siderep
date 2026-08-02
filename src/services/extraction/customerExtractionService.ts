@@ -1,20 +1,34 @@
 import type { ExtractedCustomer } from '@/types';
-import { ok, logger } from '@/utils';
+import { err, ok, toError, logger } from '@/utils';
 import type { Result } from '@/utils';
+
+import { getActiveTabId, sendTabMessage } from '@/services/messaging/runtimeMessaging';
 
 /**
  * Customer extraction service.
  *
- * PHASE 1 ships a clearly-labelled SAMPLE record so the full workflow
- * (Read → Review detected fields → Approve → Chat) can be exercised end to
- * end. No page scraping happens yet.
- *
- * PHASE 2 replaces the body of `extractActiveCustomer` with read-only DOM
- * extraction from the visible Salesforce page using
- * `chrome.scripting.executeScript`. The return contract stays identical.
+ * PHASE 2 performs read-only DOM extraction from the visible Salesforce page.
+ * The side panel cannot read another tab's DOM directly, so it asks the
+ * content script (injected on Salesforce domains) to parse the page and return
+ * the visible fields. When the active tab is not a Salesforce page we fall back
+ * to a clearly-labelled SAMPLE record so the workflow can still be demonstrated.
  */
 
 const log = logger.scope('extraction');
+
+const SALESFORCE_HOST =
+  /(\.|^)(salesforce\.com|force\.com|visualforce\.com|salesforce-setup\.com)$/i;
+
+async function activeTabIsSalesforce(): Promise<boolean> {
+  if (typeof chrome === 'undefined' || !chrome.tabs?.query) return false;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url) return false;
+  try {
+    return SALESFORCE_HOST.test(new URL(tab.url).hostname);
+  } catch {
+    return false;
+  }
+}
 
 export const SAMPLE_CUSTOMER: ExtractedCustomer = {
   displayName: 'Acme Robotics (Sample)',
@@ -73,21 +87,60 @@ export const SAMPLE_CUSTOMER: ExtractedCustomer = {
   ],
 };
 
+function freshSample(): ExtractedCustomer {
+  return {
+    ...SAMPLE_CUSTOMER,
+    extractedAt: new Date().toISOString(),
+    fields: SAMPLE_CUSTOMER.fields.map((field) => ({ ...field })),
+  };
+}
+
 export interface ExtractionService {
   extractActiveCustomer(): Promise<Result<ExtractedCustomer>>;
 }
 
+/** Returns the labelled sample record. Used as a fallback off Salesforce. */
 export class SampleExtractionService implements ExtractionService {
   async extractActiveCustomer(): Promise<Result<ExtractedCustomer>> {
-    log.info('returning sample customer (Phase 1 placeholder)');
-    return ok({
-      ...SAMPLE_CUSTOMER,
-      extractedAt: new Date().toISOString(),
-      fields: SAMPLE_CUSTOMER.fields.map((field) => ({ ...field })),
-    });
+    log.info('returning sample customer');
+    return ok(freshSample());
+  }
+}
+
+/**
+ * Real extraction: asks the content script on the active Salesforce tab to
+ * parse the visible record. Falls back to the sample when the active tab is
+ * not a Salesforce page (e.g. the user is demoing the extension elsewhere).
+ */
+export class MessagingExtractionService implements ExtractionService {
+  async extractActiveCustomer(): Promise<Result<ExtractedCustomer>> {
+    if (!(await activeTabIsSalesforce())) {
+      log.info('active tab is not Salesforce — returning sample customer');
+      return ok(freshSample());
+    }
+
+    const tabId = await getActiveTabId();
+    if (tabId == null) {
+      return err(new Error('No active tab was found.'));
+    }
+
+    const response = await sendTabMessage(tabId, { type: 'EXTRACT_CUSTOMER' });
+    if (!response.ok) {
+      return err(
+        new Error(
+          'Could not reach the Salesforce page. Reload the tab so the extension can attach, then try again.',
+        ),
+      );
+    }
+
+    const payload = response.value;
+    if (!payload.ok || !payload.customer) {
+      return err(toError(payload.error ?? 'No customer fields were detected on this page.'));
+    }
+    return ok(payload.customer);
   }
 }
 
 export function createExtractionService(): ExtractionService {
-  return new SampleExtractionService();
+  return new MessagingExtractionService();
 }

@@ -22,10 +22,12 @@ export { GmailService, createEmailService } from './email/gmailService';
 export type { EmailService } from './email/gmailService';
 
 export {
+  MessagingExtractionService,
   SampleExtractionService,
   createExtractionService,
   SAMPLE_CUSTOMER,
 } from './extraction/customerExtractionService';
 export type { ExtractionService } from './extraction/customerExtractionService';
+export { parseSalesforceRecord } from './extraction/salesforceParser';
 
 export { sendRuntimeMessage, sendTabMessage, getActiveTabId } from './messaging/runtimeMessaging';

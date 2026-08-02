@@ -63,5 +63,23 @@ export default defineManifest({
   // `identity` powers Google Workspace OAuth for Gmail (Phase 3).
   permissions: ['sidePanel', 'scripting', 'activeTab', 'storage', 'identity'],
 
+  // Lock down what the extension's own pages (the side panel) may load and
+  // connect to. Scripts/objects are restricted to bundled code (`self`), and
+  // outbound network access is limited to the two integrations we actually use:
+  //   - Azure OpenAI (chat completions) on `*.openai.azure.com`
+  //   - Google APIs (Gmail send, Phase 3) on `*.googleapis.com`
+  // Everything else is denied by default, so extracted customer data can never
+  // be exfiltrated to an unexpected host.
+  content_security_policy: {
+    extension_pages: [
+      "default-src 'self'",
+      "script-src 'self'",
+      "object-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self' https://*.openai.azure.com https://*.googleapis.com",
+    ].join('; '),
+  },
+
   host_permissions: SALESFORCE_MATCHES,
 });

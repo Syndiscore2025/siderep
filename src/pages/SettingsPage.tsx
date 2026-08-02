@@ -12,8 +12,15 @@ import {
   Textarea,
 } from '@/components/ui';
 import { useResetSettings, useSaveSettings, useSettings } from '@/hooks/useSettings';
-import { SUGGESTED_MODELS, THEMES, isAzureConfigured } from '@/types';
+import { createAIService } from '@/services';
+import { SUGGESTED_MODELS, THEMES, isAzureConfigured, isValidAzureEndpoint } from '@/types';
 import type { Settings, Theme } from '@/types';
+
+type TestState =
+  | { status: 'idle' }
+  | { status: 'testing' }
+  | { status: 'ok' }
+  | { status: 'error'; message: string };
 
 /**
  * Configuration only — nothing on this page ever touches customer data.
@@ -26,9 +33,18 @@ export function SettingsPage() {
 
   const [form, setForm] = useState<Settings>(settings);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [test, setTest] = useState<TestState>({ status: 'idle' });
 
   // Re-sync the local form whenever persisted settings change (load/reset).
   useEffect(() => setForm(settings), [settings]);
+
+  const endpointValid = isValidAzureEndpoint(form.azure.endpoint);
+
+  const runTest = async () => {
+    setTest({ status: 'testing' });
+    const result = await createAIService(form).testConnection();
+    setTest(result.ok ? { status: 'ok' } : { status: 'error', message: result.error.message });
+  };
 
   const patch = <K extends keyof Settings>(section: K, value: Partial<Settings[K]>) =>
     setForm((prev) => ({
@@ -58,11 +74,23 @@ export function SettingsPage() {
           }
         >
           <div className="space-y-3">
-            <Field label="Endpoint" hint="e.g. https://my-resource.openai.azure.com">
+            <Field
+              label="Endpoint"
+              hint={
+                endpointValid
+                  ? 'e.g. https://my-resource.openai.azure.com'
+                  : 'Enter a valid https:// URL.'
+              }
+            >
               <Input
                 value={form.azure.endpoint}
-                onChange={(e) => patch('azure', { endpoint: e.target.value })}
+                onChange={(e) => {
+                  patch('azure', { endpoint: e.target.value });
+                  setTest({ status: 'idle' });
+                }}
                 placeholder="https://…openai.azure.com"
+                aria-invalid={!endpointValid}
+                className={endpointValid ? undefined : 'border-danger focus:border-danger'}
               />
             </Field>
             <Field label="Deployment name">
@@ -91,6 +119,26 @@ export function SettingsPage() {
                 onChange={(e) => patch('azure', { apiVersion: e.target.value })}
               />
             </Field>
+
+            <div className="flex items-center gap-2 pt-0.5">
+              <Button
+                size="sm"
+                onClick={() => void runTest()}
+                loading={test.status === 'testing'}
+                disabled={!isAzureConfigured(form) || !endpointValid}
+              >
+                Test connection
+              </Button>
+              {test.status === 'ok' && (
+                <span className="flex animate-fade-in items-center gap-1 text-[11px] font-medium text-success">
+                  <CheckIcon className="size-3.5" />
+                  Connection succeeded
+                </span>
+              )}
+              {test.status === 'error' && (
+                <span className="animate-fade-in text-[11px] text-danger">{test.message}</span>
+              )}
+            </div>
           </div>
         </Card>
 

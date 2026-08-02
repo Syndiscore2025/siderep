@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, isAzureConfigured, parseSettings } from './settings';
+import {
+  DEFAULT_SETTINGS,
+  isAzureConfigured,
+  isValidAzureEndpoint,
+  parseSettings,
+} from './settings';
 
 describe('parseSettings', () => {
   it('returns full defaults for undefined input', () => {
@@ -46,5 +51,21 @@ describe('isAzureConfigured', () => {
 
     const missingKey = parseSettings({ azure: { endpoint: 'https://x', deployment: 'gpt' } });
     expect(isAzureConfigured(missingKey)).toBe(false);
+  });
+});
+
+describe('isValidAzureEndpoint', () => {
+  it('treats an empty string as valid (not-yet-configured state)', () => {
+    expect(isValidAzureEndpoint('')).toBe(true);
+    expect(isValidAzureEndpoint('   ')).toBe(true);
+  });
+
+  it('accepts well-formed https URLs', () => {
+    expect(isValidAzureEndpoint('https://my-resource.openai.azure.com')).toBe(true);
+  });
+
+  it('rejects non-https and malformed URLs', () => {
+    expect(isValidAzureEndpoint('http://insecure.example.com')).toBe(false);
+    expect(isValidAzureEndpoint('not a url')).toBe(false);
   });
 });

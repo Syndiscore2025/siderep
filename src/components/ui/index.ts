@@ -12,6 +12,7 @@ export {
   SettingsIcon,
   ShieldIcon,
   SparklesIcon,
+  StopIcon,
   TrashIcon,
   UserIcon,
 } from './icons';
