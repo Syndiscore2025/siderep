@@ -27,7 +27,7 @@ export default defineManifest({
   name: 'SideRep — AI Sales Assistant',
   version: pkg.version,
   description:
-    'AI sales assistant that reads the Salesforce page you are viewing and helps you draft emails — no Salesforce admin, APIs, or data storage required.',
+    'AI sales assistant that reads the Salesforce page you are viewing and helps you draft emails — no admin or data storage needed.',
   // Side Panel + setPanelBehavior(openPanelOnActionClick) requires Chrome 116+.
   minimum_chrome_version: '116',
 
