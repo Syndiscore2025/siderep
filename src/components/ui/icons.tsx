@@ -82,3 +82,17 @@ export const StopIcon = (p: IconProps) => (
     <rect x="6" y="6" width="12" height="12" rx="2" />
   </Base>
 );
+
+export const MailIcon = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3 7 9 6 9-6" />
+  </Base>
+);
+
+export const ClockIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Base>
+);

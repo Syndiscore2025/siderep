@@ -10,17 +10,31 @@ import {
   Select,
   SparklesIcon,
   Textarea,
+  Toggle,
 } from '@/components/ui';
+import { Diagnostics } from '@/components/settings/Diagnostics';
 import { useResetSettings, useSaveSettings, useSettings } from '@/hooks/useSettings';
-import { createAIService } from '@/services';
-import { SUGGESTED_MODELS, THEMES, isAzureConfigured, isValidAzureEndpoint } from '@/types';
-import type { Settings, Theme } from '@/types';
+import { createAIService, createEmailService } from '@/services';
+import {
+  EMAIL_DELIVERY_MODES,
+  SUGGESTED_MODELS,
+  THEMES,
+  isAzureConfigured,
+  isValidAzureEndpoint,
+} from '@/types';
+import type { EmailDeliveryMode, Settings, Theme } from '@/types';
 
 type TestState =
   | { status: 'idle' }
   | { status: 'testing' }
   | { status: 'ok' }
   | { status: 'error'; message: string };
+
+const DELIVERY_MODE_LABEL: Record<EmailDeliveryMode, string> = {
+  gmail_api: 'Send directly via Gmail API',
+  gmail_compose_url: 'Open pre-filled Gmail compose window',
+  manual_composer: 'Copy to clipboard (manual)',
+};
 
 /**
  * Configuration only — nothing on this page ever touches customer data.
@@ -34,6 +48,7 @@ export function SettingsPage() {
   const [form, setForm] = useState<Settings>(settings);
   const [showApiKey, setShowApiKey] = useState(false);
   const [test, setTest] = useState<TestState>({ status: 'idle' });
+  const [google, setGoogle] = useState<TestState>({ status: 'idle' });
 
   // Re-sync the local form whenever persisted settings change (load/reset).
   useEffect(() => setForm(settings), [settings]);
@@ -44,6 +59,25 @@ export function SettingsPage() {
     setTest({ status: 'testing' });
     const result = await createAIService(form).testConnection();
     setTest(result.ok ? { status: 'ok' } : { status: 'error', message: result.error.message });
+  };
+
+  const connectGoogle = async () => {
+    setGoogle({ status: 'testing' });
+    const auth = await createEmailService(form).authorize(true);
+    if (!auth.ok) {
+      setGoogle({ status: 'error', message: auth.error.message });
+      return;
+    }
+    try {
+      const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${auth.value}` },
+      });
+      const info = (await res.json()) as { email?: string };
+      patch('google', { connectedEmail: info.email ?? 'Connected' });
+    } catch {
+      patch('google', { connectedEmail: 'Connected' });
+    }
+    setGoogle({ status: 'ok' });
   };
 
   const patch = <K extends keyof Settings>(section: K, value: Partial<Settings[K]>) =>
@@ -207,15 +241,80 @@ export function SettingsPage() {
           </div>
         </Card>
 
+        <Card title="Email">
+          <div className="space-y-3">
+            <Field
+              label="Delivery mode"
+              hint="How approved emails are sent. Switch if your org blocks one method."
+            >
+              <Select
+                value={form.email.deliveryMode}
+                onChange={(e) =>
+                  patch('email', { deliveryMode: e.target.value as EmailDeliveryMode })
+                }
+              >
+                {EMAIL_DELIVERY_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {DELIVERY_MODE_LABEL[mode]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Template subject"
+              hint="Use {{placeholders}} — the AI fills them from approved fields."
+            >
+              <Input
+                value={form.email.template.subject}
+                onChange={(e) =>
+                  patch('email', { template: { ...form.email.template, subject: e.target.value } })
+                }
+                placeholder="Renewal for {{accountName}}"
+              />
+            </Field>
+            <Field label="Template body">
+              <Textarea
+                rows={5}
+                value={form.email.template.body}
+                onChange={(e) =>
+                  patch('email', { template: { ...form.email.template, body: e.target.value } })
+                }
+                placeholder={'Hi {{primaryContact}},\n\nI wanted to reach out about…'}
+              />
+            </Field>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium text-content-primary">Remember sent emails</p>
+                <p className="text-[11px] text-content-muted">
+                  Stores the emails you send (your artifact) — never customer data.
+                </p>
+              </div>
+              <Toggle
+                checked={form.email.rememberSent}
+                onChange={(checked) => patch('email', { rememberSent: checked })}
+                aria-label="Remember sent emails"
+              />
+            </div>
+          </div>
+        </Card>
+
         <Card title="Google Account">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-content-muted">
-              {form.google.connectedEmail ?? 'Not connected. Required for email drafts (Phase 3).'}
+              {form.google.connectedEmail ??
+                'Not connected. Required only for the Gmail API delivery mode.'}
             </p>
-            <Button size="sm" disabled title="Available in Phase 3">
-              Connect Google
+            <Button
+              size="sm"
+              onClick={() => void connectGoogle()}
+              loading={google.status === 'testing'}
+            >
+              {form.google.connectedEmail ? 'Reconnect' : 'Connect Google'}
             </Button>
           </div>
+          {google.status === 'error' && (
+            <p className="mt-2 animate-fade-in text-[11px] text-danger">{google.message}</p>
+          )}
         </Card>
 
         <Card title="Appearance">
@@ -232,6 +331,8 @@ export function SettingsPage() {
             </Select>
           </Field>
         </Card>
+
+        <Diagnostics />
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-edge bg-surface-1/80 px-3 py-2.5 backdrop-blur">

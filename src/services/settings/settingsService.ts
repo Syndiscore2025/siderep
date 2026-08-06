@@ -20,6 +20,7 @@ export interface SettingsPatch {
   ai?: Partial<Settings['ai']>;
   prompts?: Partial<Settings['prompts']>;
   google?: Partial<Settings['google']>;
+  email?: Partial<Settings['email']>;
   theme?: Theme;
 }
 
@@ -33,6 +34,11 @@ function mergeSettings(base: Settings, patch: SettingsPatch): Settings {
     ai: { ...base.ai, ...patch.ai },
     prompts: { ...base.prompts, ...patch.prompts },
     google: { ...base.google, ...patch.google },
+    email: {
+      ...base.email,
+      ...patch.email,
+      template: { ...base.email.template, ...patch.email?.template },
+    },
     theme: patch.theme ?? base.theme,
   };
 }

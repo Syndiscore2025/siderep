@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { EMAIL_DELIVERY_MODES } from './email';
+
 /**
  * Configuration model.
  *
@@ -35,6 +37,17 @@ export const settingsSchema = z.object({
     /** Connected Workspace address, shown for reference. Null when signed out. */
     connectedEmail: z.string().nullable().default(null),
   }),
+  email: z.object({
+    /** Active transport used when the user approves a send (with fallback in UI). */
+    deliveryMode: z.enum(EMAIL_DELIVERY_MODES).default('gmail_api'),
+    /** User-supplied template; `{{placeholders}}` are filled from re-crawled fields. */
+    template: z.object({
+      subject: z.string().default(''),
+      body: z.string().default(''),
+    }),
+    /** Whether to persist a record of sent emails (SideRep artifact, not customer data). */
+    rememberSent: z.boolean().default(true),
+  }),
   theme: z.enum(THEMES).default('dark'),
 });
 
@@ -46,6 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ai: { model: 'gpt-4o', temperature: 0.7, maxTokens: 1200 },
   prompts: { defaultTone: 'professional', signature: '', customInstructions: '' },
   google: { connectedEmail: null },
+  email: { deliveryMode: 'gmail_api', template: { subject: '', body: '' }, rememberSent: true },
   theme: 'dark',
 };
 
@@ -66,6 +80,14 @@ export function parseSettings(raw: unknown): Settings {
     ai: { ...DEFAULT_SETTINGS.ai, ...asRecord(input.ai) },
     prompts: { ...DEFAULT_SETTINGS.prompts, ...asRecord(input.prompts) },
     google: { ...DEFAULT_SETTINGS.google, ...asRecord(input.google) },
+    email: {
+      ...DEFAULT_SETTINGS.email,
+      ...asRecord(input.email),
+      template: {
+        ...DEFAULT_SETTINGS.email.template,
+        ...asRecord(asRecord(input.email).template),
+      },
+    },
     theme: input.theme ?? DEFAULT_SETTINGS.theme,
   };
 

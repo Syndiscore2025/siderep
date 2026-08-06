@@ -1,9 +1,11 @@
 import { cn } from '@/utils';
 
-export type View = 'assistant' | 'settings';
+export type View = 'assistant' | 'email' | 'bulk' | 'settings';
 
 const NAV: Array<{ id: View; label: string }> = [
   { id: 'assistant', label: 'Assistant' },
+  { id: 'email', label: 'Email' },
+  { id: 'bulk', label: 'Bulk' },
   { id: 'settings', label: 'Settings' },
 ];
 

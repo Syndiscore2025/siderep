@@ -4,6 +4,16 @@ export { approvedFields } from './customer';
 export type { CustomerField, ExtractedCustomer } from './customer';
 
 export type {
+  ReportRow,
+  ExtractedReport,
+  SkipReason,
+  BulkRecipient,
+  SkippedRow,
+  FilterResult,
+  BulkRunRecord,
+} from './report';
+
+export type {
   ChatRole,
   ChatMessage,
   ChatCompletionRequest,
@@ -11,7 +21,16 @@ export type {
   ChatCompletionResult,
 } from './ai';
 
-export type { EmailAction, EmailDraft, EmailResult } from './email';
+export { EMAIL_DELIVERY_MODES } from './email';
+export type {
+  EmailAction,
+  EmailDeliveryMode,
+  EmailDraft,
+  EmailTemplate,
+  GeneratedEmail,
+  EmailResult,
+  SentEmailRecord,
+} from './email';
 
 export { RUNTIME_MESSAGE_TYPES } from './messaging';
 export type {
@@ -20,6 +39,8 @@ export type {
   PingResponse,
   ExtractCustomerRequest,
   ExtractCustomerResponse,
+  ExtractReportRequest,
+  ExtractReportResponse,
   RuntimeRequest,
   RuntimeResponse,
   RuntimeResponseFor,

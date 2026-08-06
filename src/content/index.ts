@@ -1,7 +1,13 @@
-import type { ExtractCustomerResponse, PingResponse, RuntimeRequest } from '@/types';
+import type {
+  ExtractCustomerResponse,
+  ExtractReportResponse,
+  PingResponse,
+  RuntimeRequest,
+} from '@/types';
 import { logger } from '@/utils';
 
 import { parseSalesforceRecord } from '@/services/extraction/salesforceParser';
+import { parseSalesforceReport } from '@/services/extraction/salesforceReportParser';
 
 /**
  * Salesforce content script.
@@ -40,11 +46,59 @@ function extractCustomer(): ExtractCustomerResponse {
   }
 }
 
+/**
+ * Salesforce report grids virtualize rows — only the rows near the viewport are
+ * in the DOM. We scroll the grid's scroll container to the bottom in steps so
+ * more rows render, then let the caller parse. This never mutates report data;
+ * it only scrolls the user's own page to reveal already-loaded content.
+ */
+async function revealAllReportRows(): Promise<void> {
+  const scroller =
+    document.querySelector<HTMLElement>('.data-grid-container, [role="grid"]')?.parentElement ??
+    document.scrollingElement ??
+    document.documentElement;
+  if (!scroller) return;
+
+  const MAX_STEPS = 40;
+  let lastHeight = -1;
+  for (let step = 0; step < MAX_STEPS; step++) {
+    scroller.scrollTop = scroller.scrollHeight;
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    if (scroller.scrollHeight === lastHeight) break;
+    lastHeight = scroller.scrollHeight;
+  }
+  scroller.scrollTop = 0;
+}
+
+async function extractReport(): Promise<ExtractReportResponse> {
+  try {
+    await revealAllReportRows();
+    const report = parseSalesforceReport(document, location.href);
+    if (!report) {
+      return {
+        ok: false,
+        report: null,
+        error: 'No Salesforce report grid was found on this page. Open a report in run mode.',
+      };
+    }
+    return { ok: true, report };
+  } catch (error) {
+    log.error('report extraction failed', error);
+    return {
+      ok: false,
+      report: null,
+      error: error instanceof Error ? error.message : 'Failed to read the report.',
+    };
+  }
+}
+
 chrome.runtime.onMessage.addListener(
   (
     message: RuntimeRequest,
     _sender,
-    sendResponse: (response: PingResponse | ExtractCustomerResponse) => void,
+    sendResponse: (
+      response: PingResponse | ExtractCustomerResponse | ExtractReportResponse,
+    ) => void,
   ) => {
     if (message?.type === 'PING') {
       sendResponse({
@@ -58,6 +112,12 @@ chrome.runtime.onMessage.addListener(
     if (message?.type === 'EXTRACT_CUSTOMER') {
       sendResponse(extractCustomer());
       return false;
+    }
+
+    if (message?.type === 'EXTRACT_REPORT') {
+      // Async: keep the response channel open by returning true.
+      void extractReport().then(sendResponse);
+      return true;
     }
 
     return false;

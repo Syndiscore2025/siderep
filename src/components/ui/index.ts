@@ -7,6 +7,8 @@ export { EmptyState } from './EmptyState';
 export { Field } from './Field';
 export {
   CheckIcon,
+  ClockIcon,
+  MailIcon,
   RefreshIcon,
   SendIcon,
   SettingsIcon,

@@ -5,6 +5,9 @@ node_modules/
 dist/
 *.local
 
+# Packaged extension uploads (produced for the Chrome Web Store)
+siderep-*.zip
+
 # Test / coverage
 coverage/
 

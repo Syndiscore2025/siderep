@@ -1,4 +1,5 @@
 import type { ExtractedCustomer } from './customer';
+import type { ExtractedReport } from './report';
 
 /**
  * Typed message contracts exchanged over `chrome.runtime` between the side
@@ -8,7 +9,7 @@ import type { ExtractedCustomer } from './customer';
  * lets us validate messages at the boundary (Phase 2+).
  */
 
-export const RUNTIME_MESSAGE_TYPES = ['PING', 'EXTRACT_CUSTOMER'] as const;
+export const RUNTIME_MESSAGE_TYPES = ['PING', 'EXTRACT_CUSTOMER', 'EXTRACT_REPORT'] as const;
 export type RuntimeMessageType = (typeof RUNTIME_MESSAGE_TYPES)[number];
 
 export interface PingRequest {
@@ -29,11 +30,21 @@ export interface ExtractCustomerResponse {
   error?: string;
 }
 
-export type RuntimeRequest = PingRequest | ExtractCustomerRequest;
-export type RuntimeResponse = PingResponse | ExtractCustomerResponse;
+export interface ExtractReportRequest {
+  type: 'EXTRACT_REPORT';
+}
+export interface ExtractReportResponse {
+  ok: boolean;
+  report: ExtractedReport | null;
+  error?: string;
+}
+
+export type RuntimeRequest = PingRequest | ExtractCustomerRequest | ExtractReportRequest;
+export type RuntimeResponse = PingResponse | ExtractCustomerResponse | ExtractReportResponse;
 
 /** Maps a request type to its expected response for typed messaging helpers. */
 export interface RuntimeResponseFor {
   PING: PingResponse;
   EXTRACT_CUSTOMER: ExtractCustomerResponse;
+  EXTRACT_REPORT: ExtractReportResponse;
 }

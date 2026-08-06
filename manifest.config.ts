@@ -15,6 +15,13 @@ const SALESFORCE_MATCHES = [
   'https://*.salesforce-setup.com/*',
 ];
 
+// OAuth 2.0 client for Gmail send (the `gmail_api` delivery mode). Create an
+// "Chrome extension" OAuth client in Google Cloud Console → APIs & Services →
+// Credentials, enable the Gmail API, and paste the client ID here. The other
+// two delivery modes (compose URL / manual) need no OAuth and work without it.
+const GOOGLE_OAUTH_CLIENT_ID =
+  '571041420978-708c9d3mk1d824icibbkakdjv5f7eba7.apps.googleusercontent.com';
+
 export default defineManifest({
   manifest_version: 3,
   name: 'SideRep — AI Sales Assistant',
@@ -48,6 +55,18 @@ export default defineManifest({
 
   side_panel: {
     default_path: 'index.html',
+  },
+
+  // OAuth 2.0 for the `gmail_api` delivery mode (chrome.identity.getAuthToken).
+  // `gmail.send` scopes the token to sending only — the extension never reads
+  // the user's mailbox. `userinfo.email` is used solely to show which account
+  // is connected in Settings. Replace the client ID above with a real one.
+  oauth2: {
+    client_id: GOOGLE_OAUTH_CLIENT_ID,
+    scopes: [
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/userinfo.email',
+    ],
   },
 
   content_scripts: [
