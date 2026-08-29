@@ -1,7 +1,7 @@
 import type { Settings } from '@/types';
 import { toError } from '@/utils';
 
-import { createAIService } from '@/services/ai/azureOpenAIService';
+import { createAIService } from '@/services/ai/openAIChatService';
 import { createEmailService } from '@/services/email/gmailService';
 import { createExtractionService } from '@/services/extraction/customerExtractionService';
 
@@ -26,8 +26,7 @@ const GMAIL_PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profil
 /** Storage round-trip: proves config persistence works in this context. */
 export async function checkStorage(): Promise<CheckResult> {
   const base = { id: 'storage', label: 'Local storage' };
-  const area =
-    typeof chrome !== 'undefined' && chrome.storage?.local ? chrome.storage.local : null;
+  const area = typeof chrome !== 'undefined' && chrome.storage?.local ? chrome.storage.local : null;
   if (!area) {
     return { ...base, status: 'skip', detail: 'chrome.storage unavailable in this context.' };
   }
@@ -44,12 +43,12 @@ export async function checkStorage(): Promise<CheckResult> {
   }
 }
 
-/** Azure OpenAI: minimal chat-completions probe using the saved credentials. */
-export async function checkAzure(settings: Settings): Promise<CheckResult> {
-  const base = { id: 'azure', label: 'Azure OpenAI' };
+/** OpenAI Assistant: minimal chat-completions probe using its saved credentials. */
+export async function checkAssistantOpenAI(settings: Settings): Promise<CheckResult> {
+  const base = { id: 'assistant-openai', label: 'OpenAI Assistant' };
   const ai = createAIService(settings);
   if (!ai.isConfigured()) {
-    return { ...base, status: 'skip', detail: 'Add endpoint, deployment, and key in Settings.' };
+    return { ...base, status: 'skip', detail: 'Add the Assistant API key and model in Settings.' };
   }
   const result = await ai.testConnection();
   return result.ok
@@ -75,7 +74,11 @@ export async function checkGmail(settings: Settings): Promise<CheckResult> {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      return { ...base, status: 'fail', detail: `Gmail API returned ${res.status}. ${detail.slice(0, 120)}` };
+      return {
+        ...base,
+        status: 'fail',
+        detail: `Gmail API returned ${res.status}. ${detail.slice(0, 120)}`,
+      };
     }
     const profile = (await res.json()) as { emailAddress?: string };
     return {
@@ -97,7 +100,11 @@ export async function checkSalesforce(): Promise<CheckResult> {
     const source = result.value.fields[0]?.source;
     return source === 'sample'
       ? { ...base, status: 'skip', detail: 'Off a Salesforce record — returned the sample.' }
-      : { ...base, status: 'pass', detail: `Read ${result.value.fields.length} field(s) from the page.` };
+      : {
+          ...base,
+          status: 'pass',
+          detail: `Read ${result.value.fields.length} field(s) from the page.`,
+        };
   } catch (error) {
     return { ...base, status: 'fail', detail: toError(error).message };
   }
@@ -107,7 +114,7 @@ export async function checkSalesforce(): Promise<CheckResult> {
 export async function runDiagnostics(settings: Settings): Promise<CheckResult[]> {
   return Promise.all([
     checkStorage(),
-    checkAzure(settings),
+    checkAssistantOpenAI(settings),
     checkGmail(settings),
     checkSalesforce(),
   ]);

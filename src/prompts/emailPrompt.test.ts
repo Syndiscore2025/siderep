@@ -51,7 +51,11 @@ describe('buildEmailMessages', () => {
   });
 
   it('appends optional additional instructions when provided', () => {
-    const [, user] = buildEmailMessages(withTemplate('S', 'B'), customer, 'Keep it under 80 words.');
+    const [, user] = buildEmailMessages(
+      withTemplate('S', 'B'),
+      customer,
+      'Keep it under 80 words.',
+    );
     expect(user.content).toContain('ADDITIONAL INSTRUCTIONS:');
     expect(user.content).toContain('Keep it under 80 words.');
   });

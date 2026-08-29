@@ -13,18 +13,25 @@ import { EMAIL_DELIVERY_MODES } from './email';
 export const THEMES = ['dark', 'light', 'system'] as const;
 export type Theme = (typeof THEMES)[number];
 
-/** Suggested Azure OpenAI model identifiers (free text is also allowed). */
+/** Suggested OpenAI model identifiers (free text is also allowed). */
 export const SUGGESTED_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'o4-mini'];
 
 export const settingsSchema = z.object({
-  azure: z.object({
-    endpoint: z.string().trim().default(''),
-    deployment: z.string().trim().default(''),
+  repProfile: z.object({
+    name: z.string().trim().default(''),
+    company: z.string().trim().default(''),
+    phone: z.string().trim().default(''),
+    email: z.string().trim().default(''),
+  }),
+  renewalAI: z.object({
     apiKey: z.string().default(''),
-    apiVersion: z.string().trim().default('2024-10-21'),
+    model: z.string().trim().default(''),
+  }),
+  assistantAI: z.object({
+    apiKey: z.string().default(''),
+    model: z.string().trim().default('gpt-4o-mini'),
   }),
   ai: z.object({
-    model: z.string().trim().default('gpt-4o'),
     temperature: z.number().min(0).max(2).default(0.7),
     maxTokens: z.number().int().positive().max(32000).default(1200),
   }),
@@ -55,8 +62,10 @@ export type Settings = z.infer<typeof settingsSchema>;
 
 /** Fully-populated default configuration used on first run. */
 export const DEFAULT_SETTINGS: Settings = {
-  azure: { endpoint: '', deployment: '', apiKey: '', apiVersion: '2024-10-21' },
-  ai: { model: 'gpt-4o', temperature: 0.7, maxTokens: 1200 },
+  repProfile: { name: '', company: '', phone: '', email: '' },
+  renewalAI: { apiKey: '', model: '' },
+  assistantAI: { apiKey: '', model: 'gpt-4o-mini' },
+  ai: { temperature: 0.7, maxTokens: 1200 },
   prompts: { defaultTone: 'professional', signature: '', customInstructions: '' },
   google: { connectedEmail: null },
   email: { deliveryMode: 'gmail_api', template: { subject: '', body: '' }, rememberSent: true },
@@ -75,9 +84,17 @@ export function parseSettings(raw: unknown): Settings {
 
   // Deep-merge each known section over the defaults so a partially-stored
   // config (e.g. only a theme change) never wipes unrelated sections.
+  const legacyAI = asRecord(input.ai);
+  const assistantAI = asRecord(input.assistantAI);
   const merged = {
-    azure: { ...DEFAULT_SETTINGS.azure, ...asRecord(input.azure) },
-    ai: { ...DEFAULT_SETTINGS.ai, ...asRecord(input.ai) },
+    repProfile: { ...DEFAULT_SETTINGS.repProfile, ...asRecord(input.repProfile) },
+    renewalAI: { ...DEFAULT_SETTINGS.renewalAI, ...asRecord(input.renewalAI) },
+    assistantAI: {
+      ...DEFAULT_SETTINGS.assistantAI,
+      ...(typeof legacyAI.model === 'string' ? { model: legacyAI.model } : {}),
+      ...assistantAI,
+    },
+    ai: { ...DEFAULT_SETTINGS.ai, ...legacyAI },
     prompts: { ...DEFAULT_SETTINGS.prompts, ...asRecord(input.prompts) },
     google: { ...DEFAULT_SETTINGS.google, ...asRecord(input.google) },
     email: {
@@ -95,22 +112,8 @@ export function parseSettings(raw: unknown): Settings {
   return result.success ? result.data : DEFAULT_SETTINGS;
 }
 
-/** True once the minimum Azure fields required to talk to the AI are present. */
-export function isAzureConfigured(settings: Settings): boolean {
-  const { endpoint, deployment, apiKey } = settings.azure;
-  return endpoint.length > 0 && deployment.length > 0 && apiKey.length > 0;
-}
-
-/**
- * True when the endpoint is a well-formed https URL. An empty string is treated
- * as valid (the "not yet configured" state) so we don't flag a blank field.
- */
-export function isValidAzureEndpoint(endpoint: string): boolean {
-  const trimmed = endpoint.trim();
-  if (trimmed.length === 0) return true;
-  try {
-    return new URL(trimmed).protocol === 'https:';
-  } catch {
-    return false;
-  }
+/** True once the Assistant's separate OpenAI key and model are present. */
+export function isAssistantAIConfigured(settings: Settings): boolean {
+  const { apiKey, model } = settings.assistantAI;
+  return apiKey.trim().length > 0 && model.trim().length > 0;
 }

@@ -18,9 +18,10 @@ const STATUS_LABEL: Record<CheckStatus, string> = {
 };
 
 /**
- * Live connectivity checks for every integration (Azure, Gmail, Salesforce,
+ * Live connectivity checks for every integration (OpenAI, Gmail, Salesforce,
  * storage). Runs on demand with the user's real credentials — a Gmail check
- * may prompt for Google authorization. No customer data is persisted.
+ * may prompt for Google authorization. Diagnostics does not add history records
+ * or persist Salesforce extraction results.
  */
 export function Diagnostics() {
   const { settings } = useSettings();

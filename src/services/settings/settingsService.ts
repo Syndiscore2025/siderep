@@ -3,12 +3,13 @@ import type { Settings, Theme } from '@/types';
 import { logger } from '@/utils';
 
 /**
- * Settings service — the ONLY code path allowed to persist data.
+ * Settings service — the persistence boundary for extension configuration.
  *
  * It writes strictly to `chrome.storage.local` under a single namespaced key
- * and stores configuration exclusively (Azure config, model preferences,
- * prompt defaults, connected Google account, theme). Customer data must never
- * be routed through here.
+ * and stores configuration exclusively (rep profile, provider config, model
+ * preferences, prompt defaults, connected Google account, theme). Email, bulk,
+ * and Renewal histories use their own isolated services and keys; none are
+ * routed through this settings module.
  */
 
 const STORAGE_KEY = 'siderep.settings';
@@ -16,7 +17,9 @@ const log = logger.scope('settings');
 
 /** Partial patch shape used by `updateSettings`. */
 export interface SettingsPatch {
-  azure?: Partial<Settings['azure']>;
+  repProfile?: Partial<Settings['repProfile']>;
+  renewalAI?: Partial<Settings['renewalAI']>;
+  assistantAI?: Partial<Settings['assistantAI']>;
   ai?: Partial<Settings['ai']>;
   prompts?: Partial<Settings['prompts']>;
   google?: Partial<Settings['google']>;
@@ -30,7 +33,9 @@ function storageArea(): chrome.storage.StorageArea | null {
 
 function mergeSettings(base: Settings, patch: SettingsPatch): Settings {
   return {
-    azure: { ...base.azure, ...patch.azure },
+    repProfile: { ...base.repProfile, ...patch.repProfile },
+    renewalAI: { ...base.renewalAI, ...patch.renewalAI },
+    assistantAI: { ...base.assistantAI, ...patch.assistantAI },
     ai: { ...base.ai, ...patch.ai },
     prompts: { ...base.prompts, ...patch.prompts },
     google: { ...base.google, ...patch.google },

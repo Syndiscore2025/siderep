@@ -135,9 +135,7 @@ export function BulkComposer() {
                   icon={<SendIcon className="size-3.5" />}
                   loading={phase.kind === 'sending'}
                   disabled={!body.trim() || bulk.selectedCount === 0 || isBusy}
-                  onClick={() =>
-                    void bulk.approveAndSend({ to: [], subject, body })
-                  }
+                  onClick={() => void bulk.approveAndSend({ to: [], subject, body })}
                 >
                   Send to {bulk.selectedCount} approved
                 </Button>

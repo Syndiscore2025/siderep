@@ -3,7 +3,7 @@ import type { ExtractedCustomer, GeneratedEmail, Settings } from '@/types';
 import { err, ok, toError } from '@/utils';
 import type { Result } from '@/utils';
 
-import type { AIService } from '@/services/ai/azureOpenAIService';
+import type { AIService } from '@/services/ai/openAIChatService';
 
 /**
  * Email generation — turns the user's template + approved customer fields into a
@@ -55,7 +55,7 @@ export async function generateEmail(
   const messages = buildEmailMessages(settings, customer, instruction);
   const result = await ai.complete({
     messages,
-    model: settings.ai.model,
+    model: settings.assistantAI.model,
     temperature: settings.ai.temperature,
     maxTokens: settings.ai.maxTokens,
     signal,

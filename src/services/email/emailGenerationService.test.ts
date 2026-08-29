@@ -16,7 +16,8 @@ describe('parseGeneratedEmail', () => {
   });
 
   it('tolerates code fences and surrounding prose', () => {
-    const raw = 'Sure! Here is your email:\n```json\n{"to":[],"subject":"S","body":"B"}\n```\nEnjoy.';
+    const raw =
+      'Sure! Here is your email:\n```json\n{"to":[],"subject":"S","body":"B"}\n```\nEnjoy.';
     const result = parseGeneratedEmail(raw);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.body).toBe('B');

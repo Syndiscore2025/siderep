@@ -4,10 +4,9 @@ import { logger } from '@/utils';
 /**
  * Sent-email history — SideRep's OWN artifact of emails it sent.
  *
- * This is the one deliberate exception to "never persist": it records emails we
- * generated and sent, NOT customer data. Raw Salesforce fields are never stored
- * here; fresh customer info is always re-read from the page when needed. Records
- * are capped to `MAX_RECORDS` (newest first) and can be cleared at any time.
+ * This service stores the Email tool's sent artifacts, not raw Salesforce field
+ * payloads. Records are capped to `MAX_RECORDS` (newest first) and can be cleared
+ * at any time. Renewal copied-email history is separate and uses its own key.
  */
 
 const STORAGE_KEY = 'siderep.sentEmails';

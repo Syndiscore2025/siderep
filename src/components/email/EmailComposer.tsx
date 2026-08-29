@@ -90,12 +90,19 @@ export function EmailComposer() {
         {showEditor && (
           <>
             <Field label="To">
-              <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@company.com" />
+              <Input
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="name@company.com"
+              />
             </Field>
             <Field label="Subject">
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
             </Field>
-            <Field label="Body" hint="Review and edit before sending — nothing sends automatically.">
+            <Field
+              label="Body"
+              hint="Review and edit before sending — nothing sends automatically."
+            >
               <Textarea rows={8} value={body} onChange={(e) => setBody(e.target.value)} />
             </Field>
             <div className="flex items-center gap-2">

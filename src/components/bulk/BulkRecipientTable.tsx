@@ -92,7 +92,10 @@ export function BulkRecipientTable({
           </summary>
           <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
             {skipped.map((row) => (
-              <li key={row.row.index} className="flex items-center justify-between gap-2 text-[11px]">
+              <li
+                key={row.row.index}
+                className="flex items-center justify-between gap-2 text-[11px]"
+              >
                 <span className="truncate text-content-muted">
                   {row.row.name || row.row.email || `Row ${row.row.index + 1}`}
                 </span>

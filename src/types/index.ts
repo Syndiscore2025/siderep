@@ -3,6 +3,23 @@
 export { approvedFields } from './customer';
 export type { CustomerField, ExtractedCustomer } from './customer';
 
+export { EMPTY_RENEWAL_INPUT } from './renewal';
+export type {
+  RenewalEligibility,
+  RenewalOutreachType,
+  RenewalInput,
+  RenewalRepProfile,
+  RenewalSource,
+  RenewalDraft,
+  RenewalResearchRequest,
+  RenewalSentEmailContext,
+  RenewalSentEmailRecord,
+  RenewalCycleRecord,
+  RenewalAccountIdentity,
+  RenewalAccountRecord,
+  RenewalHistoryStore,
+} from './renewal';
+
 export type {
   ReportRow,
   ExtractedReport,
@@ -52,7 +69,6 @@ export {
   settingsSchema,
   DEFAULT_SETTINGS,
   parseSettings,
-  isAzureConfigured,
-  isValidAzureEndpoint,
+  isAssistantAIConfigured,
 } from './settings';
 export type { Settings, Theme } from './settings';

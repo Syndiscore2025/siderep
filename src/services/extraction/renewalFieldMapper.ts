@@ -1,0 +1,178 @@
+import { EMPTY_RENEWAL_INPUT } from '@/types';
+import type { CustomerField, ExtractedCustomer, RenewalInput } from '@/types';
+
+export const MAX_RENEWAL_STRING_LENGTH = 500;
+export const MAX_RENEWAL_URL_LENGTH = 2048;
+
+function stripControlCharacters(value: string, replacement: string): string {
+  return [...value]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || code === 127 ? replacement : character;
+    })
+    .join('');
+}
+
+/** Alias order is significant: the first populated exact label wins. */
+export const RENEWAL_FIELD_ALIASES = {
+  merchantName: ['Merchant Name'],
+  businessName: ['Business Name', 'Legal Business Name', 'Legal Name'],
+  accountName: ['Account Name'],
+  dba: ['DBA', 'DBA Name', 'Doing Business As'],
+  latestLender: ['Most Recent Lender', 'Most Recent Funder', 'Latest Lender', 'Latest Funder'],
+  latestFundingDate: ['Most Recent Funding Date', 'Latest Funding Date', 'Funding Date'],
+  additionalLender: [
+    'Most Recent Lender 2',
+    'Most Recent Funder 2',
+    'Latest Lender 2',
+    'Latest Funder 2',
+    'Second Lender',
+    'Lender 2',
+  ],
+  additionalFundingDate: [
+    'Most Recent Funding Date 2',
+    'Latest Funding Date 2',
+    'Second Funding Date',
+    'Funding Date 2',
+  ],
+  website: ['Website', 'Business Website', 'Website URL'],
+} as const;
+
+type AliasKey = keyof typeof RENEWAL_FIELD_ALIASES;
+
+/** Collapses whitespace, removes control characters, and applies a hard bound. */
+export function normalizeRenewalString(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return stripControlCharacters(value, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_RENEWAL_STRING_LENGTH);
+}
+
+/** Returns only bounded HTTP(S) URLs without embedded credentials. */
+export function normalizeRenewalUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const clean = stripControlCharacters(value, '').trim().slice(0, MAX_RENEWAL_URL_LENGTH);
+  if (!clean) return undefined;
+  try {
+    const url = new URL(clean);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
+      return undefined;
+    return url.href.slice(0, MAX_RENEWAL_URL_LENGTH);
+  } catch {
+    return undefined;
+  }
+}
+
+function labelKey(value: string): string {
+  return normalizeRenewalString(value).toLocaleLowerCase();
+}
+
+function valuesFor(fields: CustomerField[], key: AliasKey): string[] {
+  const aliases = RENEWAL_FIELD_ALIASES[key];
+  const values: string[] = [];
+  for (const alias of aliases) {
+    for (const field of fields) {
+      if (labelKey(field.label) !== labelKey(alias)) continue;
+      const value = normalizeRenewalString(field.value);
+      if (value) values.push(value);
+    }
+  }
+  return values;
+}
+
+function firstValue(fields: CustomerField[], key: AliasKey): string {
+  return valuesFor(fields, key)[0] ?? '';
+}
+
+function prefer(crawled: string, manual: unknown): string {
+  return crawled || normalizeRenewalString(manual);
+}
+
+function calendarDate(value: string): string | undefined {
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(value);
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
+  const parts = iso
+    ? [Number(iso[1]), Number(iso[2]), Number(iso[3])]
+    : us
+      ? [Number(us[3]), Number(us[1]), Number(us[2])]
+      : null;
+  if (parts) {
+    const [year, month, day] = parts;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    ) {
+      return date.toISOString().slice(0, 10);
+    }
+    return undefined;
+  }
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return undefined;
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export interface RenewalFieldMapping {
+  input: RenewalInput;
+  warnings: string[];
+  detectedAdditionalLender: boolean;
+}
+
+/** Maps visible Salesforce fields without retaining funding dates. */
+export function mapRenewalFields(
+  customer: ExtractedCustomer,
+  manual: RenewalInput = EMPTY_RENEWAL_INPUT,
+): RenewalFieldMapping {
+  const fields = customer.fields;
+  const warnings: string[] = [];
+  const additionalLender = firstValue(fields, 'additionalLender');
+  const primaryRawDate = firstValue(fields, 'latestFundingDate');
+  const additionalRawDate = firstValue(fields, 'additionalFundingDate');
+  const primaryDate = calendarDate(primaryRawDate);
+  const additionalDate = calendarDate(additionalRawDate);
+  let additionalSameDayLender = '';
+
+  if (additionalLender) {
+    if (primaryDate && additionalDate && primaryDate === additionalDate) {
+      additionalSameDayLender = additionalLender;
+    } else {
+      warnings.push(
+        'A second lender was found, but its funding date could not be confirmed as the same latest calendar date. Review it manually.',
+      );
+    }
+  } else if (additionalRawDate) {
+    warnings.push(
+      'A second funding date was found without an explicitly numbered second lender. Review it manually.',
+    );
+  }
+
+  const crawledWebsite = firstValue(fields, 'website');
+  const website = crawledWebsite
+    ? (normalizeRenewalUrl(crawledWebsite) ??
+      normalizeRenewalUrl(manual.website) ??
+      normalizeRenewalString(manual.website))
+    : (normalizeRenewalUrl(manual.website) ?? normalizeRenewalString(manual.website));
+
+  return {
+    input: {
+      merchantName: prefer(firstValue(fields, 'merchantName'), manual.merchantName),
+      businessName: prefer(firstValue(fields, 'businessName'), manual.businessName),
+      accountName: prefer(firstValue(fields, 'accountName'), manual.accountName),
+      dba: prefer(firstValue(fields, 'dba'), manual.dba),
+      currentBalance: normalizeRenewalString(manual.currentBalance),
+      percentagePaid: normalizeRenewalString(manual.percentagePaid),
+      latestLender: prefer(firstValue(fields, 'latestLender'), manual.latestLender),
+      additionalSameDayLender:
+        additionalSameDayLender || normalizeRenewalString(manual.additionalSameDayLender),
+      website,
+    },
+    warnings,
+    detectedAdditionalLender: Boolean(additionalSameDayLender),
+  };
+}

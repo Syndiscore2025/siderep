@@ -3,16 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '@/types';
 import type { Settings } from '@/types';
 
-import { checkAzure, checkGmail, checkStorage } from './diagnosticsService';
+import { checkAssistantOpenAI, checkGmail, checkStorage } from './diagnosticsService';
 
-const CONFIGURED_AZURE: Settings = {
+const CONFIGURED_ASSISTANT: Settings = {
   ...DEFAULT_SETTINGS,
-  azure: {
-    endpoint: 'https://x.openai.azure.com',
-    deployment: 'gpt',
-    apiKey: 'k',
-    apiVersion: '2024-10-21',
-  },
+  assistantAI: { apiKey: 'test-assistant-key', model: 'gpt-4o-mini' },
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -35,10 +30,10 @@ describe('checkStorage', () => {
   });
 });
 
-describe('checkAzure', () => {
-  it('skips when Azure is not configured', async () => {
+describe('checkAssistantOpenAI', () => {
+  it('skips when the OpenAI Assistant is not configured', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    const result = await checkAzure(DEFAULT_SETTINGS);
+    const result = await checkAssistantOpenAI(DEFAULT_SETTINGS);
     expect(result.status).toBe('skip');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -47,13 +42,15 @@ describe('checkAzure', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({ choices: [{ message: { content: 'ok' } }] }),
     );
-    const result = await checkAzure(CONFIGURED_AZURE);
+    const result = await checkAssistantOpenAI(CONFIGURED_ASSISTANT);
     expect(result.status).toBe('pass');
   });
 
   it('fails and surfaces the error when the endpoint rejects', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ error: { message: 'bad' } }, 401));
-    const result = await checkAzure(CONFIGURED_AZURE);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({ error: { message: 'bad' } }, 401),
+    );
+    const result = await checkAssistantOpenAI(CONFIGURED_ASSISTANT);
     expect(result.status).toBe('fail');
     expect(result.detail).toContain('401');
   });

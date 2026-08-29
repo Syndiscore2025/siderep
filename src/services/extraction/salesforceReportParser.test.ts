@@ -22,7 +22,10 @@ const TABLE_FIXTURE = `
 
 describe('parseSalesforceReport — table grid', () => {
   it('reads headers, rows, and the report title', () => {
-    const report = parseSalesforceReport(doc(TABLE_FIXTURE), 'https://x.lightning.force.com/report');
+    const report = parseSalesforceReport(
+      doc(TABLE_FIXTURE),
+      'https://x.lightning.force.com/report',
+    );
     expect(report).not.toBeNull();
     expect(report?.title).toBe('Active Accounts');
     expect(report?.columns).toEqual(['Account Name', 'Email', 'Status']);

@@ -1,14 +1,6 @@
 import { useState } from 'react';
 
-import {
-  Badge,
-  Button,
-  Card,
-  ClockIcon,
-  EmptyState,
-  MailIcon,
-  TrashIcon,
-} from '@/components/ui';
+import { Badge, Button, Card, ClockIcon, EmptyState, MailIcon, TrashIcon } from '@/components/ui';
 import { useClearSentHistory, useSentHistory } from '@/hooks/useSentHistory';
 import type { EmailDeliveryMode, SentEmailRecord } from '@/types';
 import { cn } from '@/utils';
@@ -68,8 +60,8 @@ function HistoryRow({ record }: { record: SentEmailRecord }) {
 }
 
 /**
- * Read-only log of emails SideRep has sent (its own artifact — never customer
- * data). Rows expand to show the sent body; the whole log can be cleared.
+ * Read-only log of emails sent through the Email tool. Rows expand to show the
+ * sent body; this Email-tool log can be cleared independently of Renewal data.
  */
 export function SentHistory() {
   const { records, isLoading } = useSentHistory();
@@ -99,7 +91,7 @@ export function SentHistory() {
         <EmptyState
           icon={<MailIcon className="size-5" />}
           title="No emails sent yet"
-          description="Emails you send from SideRep appear here — stored as your own artifact, never customer data."
+          description="Emails sent through the Email tool appear here as a bounded local history that you can clear."
         />
       ) : (
         <ul className={cn('space-y-1.5')}>

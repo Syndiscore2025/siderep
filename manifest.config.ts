@@ -27,7 +27,7 @@ export default defineManifest({
   name: 'SideRep — AI Sales Assistant',
   version: pkg.version,
   description:
-    'AI sales assistant that reads the Salesforce page you are viewing and helps you draft emails — no admin or data storage needed.',
+    'AI sales assistant that reads the visible Salesforce page and drafts outreach without Salesforce admin access, APIs, or a backend.',
   // Side Panel + setPanelBehavior(openPanelOnActionClick) requires Chrome 116+.
   minimum_chrome_version: '116',
 
@@ -78,14 +78,15 @@ export default defineManifest({
   ],
 
   // `scripting` is used to read the visible DOM on demand (Phase 2).
-  // `storage` persists configuration only — never customer data.
+  // `storage` persists configuration, sent/bulk records, and bounded local Renewal
+  // identity/website plus copied-email history. Renewal data can be deleted in-app.
   // `identity` powers Google Workspace OAuth for Gmail (Phase 3).
   permissions: ['sidePanel', 'scripting', 'activeTab', 'storage', 'identity'],
 
   // Lock down what the extension's own pages (the side panel) may load and
   // connect to. Scripts/objects are restricted to bundled code (`self`), and
-  // outbound network access is limited to the two integrations we actually use:
-  //   - Azure OpenAI (chat completions) on `*.openai.azure.com`
+  // outbound network access is limited to the integrations we actually use:
+  //   - OpenAI (Assistant chat and user-approved Renewal generation) on `api.openai.com`
   //   - Google APIs (Gmail send, Phase 3) on `*.googleapis.com`
   // Everything else is denied by default, so extracted customer data can never
   // be exfiltrated to an unexpected host.
@@ -96,9 +97,9 @@ export default defineManifest({
       "object-src 'self'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
-      "connect-src 'self' https://*.openai.azure.com https://*.googleapis.com",
+      "connect-src 'self' https://api.openai.com https://*.googleapis.com",
     ].join('; '),
   },
 
-  host_permissions: SALESFORCE_MATCHES,
+  host_permissions: [...SALESFORCE_MATCHES, 'https://api.openai.com/*'],
 });

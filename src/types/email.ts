@@ -50,9 +50,9 @@ export interface EmailResult {
 }
 
 /**
- * A record of an email we sent — SideRep's OWN artifact, explicitly allowed to
- * persist. It is NOT customer data: raw Salesforce fields are never stored here.
- * Fresh customer info is always re-crawled from the page when needed.
+ * A bounded record of an email sent by the Email tool. Raw Salesforce field
+ * payloads are not included. Renewal copied-email history has a separate type
+ * and storage boundary.
  */
 export interface SentEmailRecord {
   id: string;

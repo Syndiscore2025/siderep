@@ -64,7 +64,7 @@ export function useChat() {
         ];
         const request = {
           messages: requestMessages,
-          model: settings.ai.model,
+          model: settings.assistantAI.model,
           temperature: settings.ai.temperature,
           maxTokens: settings.ai.maxTokens,
           signal: controller.signal,

@@ -1,10 +1,11 @@
 // Service layer barrel. Each service owns one integration boundary:
 //
-//   settings/    — the ONLY module allowed to persist (config-only storage)
-//   ai/          — Azure OpenAI chat completions (Phase 2)
+//   settings/    — persisted extension configuration
+//   ai/          — OpenAI chat completions and Renewal Responses API
 //   email/       — Gmail drafts/sends via chrome.identity OAuth (Phase 3)
 //   extraction/  — read-only DOM extraction from the visible page (Phase 2)
 //   messaging/   — typed chrome.runtime / chrome.tabs message transport
+//   renewal/     — bounded local Renewal account and copied-email history
 
 export {
   loadSettings,
@@ -15,8 +16,14 @@ export {
 } from './settings/settingsService';
 export type { SettingsPatch } from './settings/settingsService';
 
-export { AzureOpenAIService, createAIService } from './ai/azureOpenAIService';
-export type { AIService } from './ai/azureOpenAIService';
+export { OpenAIChatService, createAIService } from './ai/openAIChatService';
+export type { AIService } from './ai/openAIChatService';
+export {
+  OpenAIResponsesService,
+  createRenewalResearchService,
+  createRenewalAIService,
+} from './ai/openAIResponsesService';
+export type { RenewalResearchService } from './ai/openAIResponsesService';
 
 export {
   GmailService,
@@ -29,13 +36,43 @@ export { generateEmail, parseGeneratedEmail } from './email/emailGenerationServi
 export { loadSentEmails, recordSentEmail, clearSentEmails } from './email/sentHistoryService';
 
 export {
+  RENEWAL_HISTORY_STORAGE_KEY,
+  MAX_RENEWAL_ACCOUNTS,
+  MAX_RENEWAL_SEARCH_RESULTS,
+  MAX_RENEWAL_HISTORY_BYTES,
+  RenewalHistorySaveError,
+  migrateRenewalHistory,
+  loadRenewalHistory,
+  recordCopiedRenewalEmail,
+  archiveRenewalCycle,
+  deleteRenewalAccount,
+  clearRenewalHistory,
+  searchRenewalAccounts,
+  subscribeRenewalHistory,
+} from './renewal/renewalHistoryService';
+export type {
+  RecordCopiedRenewalEmailInput,
+  RecordCopiedRenewalEmailResult,
+} from './renewal/renewalHistoryService';
+
+export {
   MessagingExtractionService,
   SampleExtractionService,
   createExtractionService,
   SAMPLE_CUSTOMER,
 } from './extraction/customerExtractionService';
 export type { ExtractionService } from './extraction/customerExtractionService';
+export type { ExtractionServiceOptions } from './extraction/customerExtractionService';
 export { parseSalesforceRecord } from './extraction/salesforceParser';
+export {
+  MAX_RENEWAL_STRING_LENGTH,
+  MAX_RENEWAL_URL_LENGTH,
+  RENEWAL_FIELD_ALIASES,
+  normalizeRenewalString,
+  normalizeRenewalUrl,
+  mapRenewalFields,
+} from './extraction/renewalFieldMapper';
+export type { RenewalFieldMapping } from './extraction/renewalFieldMapper';
 export { parseSalesforceReport } from './extraction/salesforceReportParser';
 export {
   MessagingReportExtractionService,
@@ -69,7 +106,7 @@ export { sendRuntimeMessage, sendTabMessage, getActiveTabId } from './messaging/
 export {
   runDiagnostics,
   checkStorage,
-  checkAzure,
+  checkAssistantOpenAI,
   checkGmail,
   checkSalesforce,
 } from './diagnostics/diagnosticsService';

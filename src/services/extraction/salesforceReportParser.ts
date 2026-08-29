@@ -40,7 +40,9 @@ function readHeaders(table: Element): string[] {
   const headerCells =
     table.querySelectorAll('thead th').length > 0
       ? table.querySelectorAll('thead th')
-      : table.querySelectorAll('[role="rowgroup"] [role="columnheader"], [role="columnheader"], th');
+      : table.querySelectorAll(
+          '[role="rowgroup"] [role="columnheader"], [role="columnheader"], th',
+        );
   const labels: string[] = [];
   headerCells.forEach((cell) => {
     const label = normalizeWhitespace(cell.textContent ?? '');
@@ -111,7 +113,12 @@ function buildRow(
 }
 
 function readTitle(doc: Document): string {
-  const candidates = ['.reportName', '.slds-page-header__title', 'h1.slds-page-header__title', 'h1'];
+  const candidates = [
+    '.reportName',
+    '.slds-page-header__title',
+    'h1.slds-page-header__title',
+    'h1',
+  ];
   for (const selector of candidates) {
     const text = normalizeWhitespace(doc.querySelector(selector)?.textContent ?? '');
     if (text) return text;

@@ -37,7 +37,7 @@ export function buildBulkEmailMessages(
     '- Use a neutral greeting such as "Hello," (no personalized name).',
     '- Keep it concise, professional, and relevant to the campaign described.',
     '',
-    'CAMPAIGN — who these accounts are (the rep\'s words):',
+    "CAMPAIGN — who these accounts are (the rep's words):",
     criteria.trim() || '(active accounts selected by the rep)',
     '',
     'EMAIL TYPE — what the rep wants written:',

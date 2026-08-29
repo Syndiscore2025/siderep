@@ -15,13 +15,7 @@ import {
 import { Diagnostics } from '@/components/settings/Diagnostics';
 import { useResetSettings, useSaveSettings, useSettings } from '@/hooks/useSettings';
 import { createAIService, createEmailService } from '@/services';
-import {
-  EMAIL_DELIVERY_MODES,
-  SUGGESTED_MODELS,
-  THEMES,
-  isAzureConfigured,
-  isValidAzureEndpoint,
-} from '@/types';
+import { EMAIL_DELIVERY_MODES, SUGGESTED_MODELS, THEMES, isAssistantAIConfigured } from '@/types';
 import type { EmailDeliveryMode, Settings, Theme } from '@/types';
 
 type TestState =
@@ -46,14 +40,16 @@ export function SettingsPage() {
   const resetSettings = useResetSettings();
 
   const [form, setForm] = useState<Settings>(settings);
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [showAssistantApiKey, setShowAssistantApiKey] = useState(false);
+  const [showRenewalApiKey, setShowRenewalApiKey] = useState(false);
   const [test, setTest] = useState<TestState>({ status: 'idle' });
   const [google, setGoogle] = useState<TestState>({ status: 'idle' });
 
   // Re-sync the local form whenever persisted settings change (load/reset).
   useEffect(() => setForm(settings), [settings]);
 
-  const endpointValid = isValidAzureEndpoint(form.azure.endpoint);
+  const renewalConfigured =
+    form.renewalAI.apiKey.trim().length > 0 && form.renewalAI.model.trim().length > 0;
 
   const runTest = async () => {
     setTest({ status: 'testing' });
@@ -93,11 +89,46 @@ export function SettingsPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
+        <Card title="Rep Profile">
+          <div className="space-y-3">
+            <Field label="Name">
+              <Input
+                value={form.repProfile.name}
+                onChange={(e) => patch('repProfile', { name: e.target.value })}
+                autoComplete="name"
+              />
+            </Field>
+            <Field label="Company">
+              <Input
+                value={form.repProfile.company}
+                onChange={(e) => patch('repProfile', { company: e.target.value })}
+                autoComplete="organization"
+              />
+            </Field>
+            <Field label="Phone">
+              <Input
+                type="tel"
+                value={form.repProfile.phone}
+                onChange={(e) => patch('repProfile', { phone: e.target.value })}
+                autoComplete="tel"
+              />
+            </Field>
+            <Field label="Email">
+              <Input
+                type="email"
+                value={form.repProfile.email}
+                onChange={(e) => patch('repProfile', { email: e.target.value })}
+                autoComplete="email"
+              />
+            </Field>
+          </div>
+        </Card>
+
         <Card
-          title="Azure OpenAI"
+          title="OpenAI Renewal"
           icon={<SparklesIcon className="size-3.5" />}
           action={
-            isAzureConfigured(form) ? (
+            renewalConfigured ? (
               <Badge tone="success">
                 <CheckIcon className="mr-0.5 size-3" />
                 Configured
@@ -108,50 +139,85 @@ export function SettingsPage() {
           }
         >
           <div className="space-y-3">
-            <Field
-              label="Endpoint"
-              hint={
-                endpointValid
-                  ? 'e.g. https://my-resource.openai.azure.com'
-                  : 'Enter a valid https:// URL.'
-              }
-            >
-              <Input
-                value={form.azure.endpoint}
-                onChange={(e) => {
-                  patch('azure', { endpoint: e.target.value });
-                  setTest({ status: 'idle' });
-                }}
-                placeholder="https://…openai.azure.com"
-                aria-invalid={!endpointValid}
-                className={endpointValid ? undefined : 'border-danger focus:border-danger'}
-              />
-            </Field>
-            <Field label="Deployment name">
-              <Input
-                value={form.azure.deployment}
-                onChange={(e) => patch('azure', { deployment: e.target.value })}
-                placeholder="my-gpt4o-deployment"
-              />
-            </Field>
-            <Field label="API key" hint="Stored locally on this device only.">
+            <Field label="API key">
               <div className="flex gap-2">
                 <Input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={form.azure.apiKey}
-                  onChange={(e) => patch('azure', { apiKey: e.target.value })}
+                  type={showRenewalApiKey ? 'text' : 'password'}
+                  value={form.renewalAI.apiKey}
+                  onChange={(e) => patch('renewalAI', { apiKey: e.target.value })}
                   autoComplete="off"
                 />
-                <Button size="sm" className="h-9" onClick={() => setShowApiKey((v) => !v)}>
-                  {showApiKey ? 'Hide' : 'Show'}
+                <Button
+                  size="sm"
+                  className="h-9"
+                  onClick={() => setShowRenewalApiKey((visible) => !visible)}
+                >
+                  {showRenewalApiKey ? 'Hide' : 'Show'}
                 </Button>
               </div>
             </Field>
-            <Field label="API version">
+            <Field label="Model" hint="Enter the model configured for your OpenAI account.">
               <Input
-                value={form.azure.apiVersion}
-                onChange={(e) => patch('azure', { apiVersion: e.target.value })}
+                value={form.renewalAI.model}
+                onChange={(e) => patch('renewalAI', { model: e.target.value })}
+                placeholder="e.g. gpt-4o-mini"
               />
+            </Field>
+            <p className="text-[11px] text-content-muted">
+              Stored in chrome.storage.local on this device only. Your API key is never logged.
+            </p>
+          </div>
+        </Card>
+
+        <Card
+          title="OpenAI Assistant"
+          icon={<SparklesIcon className="size-3.5" />}
+          action={
+            isAssistantAIConfigured(form) ? (
+              <Badge tone="success">
+                <CheckIcon className="mr-0.5 size-3" />
+                Configured
+              </Badge>
+            ) : (
+              <Badge tone="warning">Not configured</Badge>
+            )
+          }
+        >
+          <div className="space-y-3">
+            <Field label="API key" hint="Stored locally on this device only.">
+              <div className="flex gap-2">
+                <Input
+                  type={showAssistantApiKey ? 'text' : 'password'}
+                  value={form.assistantAI.apiKey}
+                  onChange={(e) => {
+                    patch('assistantAI', { apiKey: e.target.value });
+                    setTest({ status: 'idle' });
+                  }}
+                  autoComplete="off"
+                />
+                <Button
+                  size="sm"
+                  className="h-9"
+                  onClick={() => setShowAssistantApiKey((visible) => !visible)}
+                >
+                  {showAssistantApiKey ? 'Hide' : 'Show'}
+                </Button>
+              </div>
+            </Field>
+            <Field label="Model" hint="Separate from the Renewal model above.">
+              <Input
+                list="siderep-assistant-models"
+                value={form.assistantAI.model}
+                onChange={(e) => {
+                  patch('assistantAI', { model: e.target.value });
+                  setTest({ status: 'idle' });
+                }}
+              />
+              <datalist id="siderep-assistant-models">
+                {SUGGESTED_MODELS.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
             </Field>
 
             <div className="flex items-center gap-2 pt-0.5">
@@ -159,7 +225,7 @@ export function SettingsPage() {
                 size="sm"
                 onClick={() => void runTest()}
                 loading={test.status === 'testing'}
-                disabled={!isAzureConfigured(form) || !endpointValid}
+                disabled={!isAssistantAIConfigured(form)}
               >
                 Test connection
               </Button>
@@ -178,18 +244,6 @@ export function SettingsPage() {
 
         <Card title="AI Behavior">
           <div className="space-y-3">
-            <Field label="Model">
-              <Input
-                list="siderep-models"
-                value={form.ai.model}
-                onChange={(e) => patch('ai', { model: e.target.value })}
-              />
-              <datalist id="siderep-models">
-                {SUGGESTED_MODELS.map((model) => (
-                  <option key={model} value={model} />
-                ))}
-              </datalist>
-            </Field>
             <Field label={`Temperature — ${form.ai.temperature.toFixed(1)}`}>
               <input
                 type="range"

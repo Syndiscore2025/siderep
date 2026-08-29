@@ -12,27 +12,58 @@ describe('settingsService', () => {
   it('round-trips saved settings', async () => {
     const saved = await saveSettings({
       ...DEFAULT_SETTINGS,
-      azure: { ...DEFAULT_SETTINGS.azure, endpoint: 'https://x.openai.azure.com' },
+      assistantAI: { apiKey: 'assistant-key', model: 'gpt-4.1-mini' },
       theme: 'light',
     });
     expect(saved.theme).toBe('light');
 
     const loaded = await loadSettings();
-    expect(loaded.azure.endpoint).toBe('https://x.openai.azure.com');
+    expect(loaded.assistantAI).toEqual({ apiKey: 'assistant-key', model: 'gpt-4.1-mini' });
     expect(loaded.theme).toBe('light');
   });
 
   it('updateSettings merges a patch without clobbering other sections', async () => {
     await saveSettings({
       ...DEFAULT_SETTINGS,
-      azure: { ...DEFAULT_SETTINGS.azure, endpoint: 'https://keep-me' },
+      repProfile: { ...DEFAULT_SETTINGS.repProfile, company: 'Keep Co' },
+      renewalAI: { apiKey: '', model: 'configured-model' },
+      assistantAI: { apiKey: 'keep-me', model: 'gpt-4.1-mini' },
     });
 
-    const updated = await updateSettings({ ai: { temperature: 1.2 } });
+    const updated = await updateSettings({
+      repProfile: { name: 'Alex' },
+      renewalAI: { apiKey: 'test-key' },
+      assistantAI: { model: 'gpt-4o' },
+      ai: { temperature: 1.2 },
+    });
     expect(updated.ai.temperature).toBe(1.2);
-    expect(updated.azure.endpoint).toBe('https://keep-me');
+    expect(updated.assistantAI).toEqual({ apiKey: 'keep-me', model: 'gpt-4o' });
+    expect(updated.repProfile).toEqual({
+      ...DEFAULT_SETTINGS.repProfile,
+      name: 'Alex',
+      company: 'Keep Co',
+    });
+    expect(updated.renewalAI).toEqual({ apiKey: 'test-key', model: 'configured-model' });
     // Unpatched values keep defaults.
     expect(updated.ai.maxTokens).toBe(DEFAULT_SETTINGS.ai.maxTokens);
+  });
+
+  it('migrates the legacy AI model without retaining obsolete Azure credentials', async () => {
+    await chrome.storage.local.set({
+      'siderep.settings': {
+        azure: { endpoint: 'https://legacy.openai.azure.com', apiKey: 'obsolete-key' },
+        ai: { model: 'gpt-4.1', temperature: 0.4 },
+        theme: 'light',
+      },
+    });
+
+    const loaded = await loadSettings();
+    expect(loaded).not.toHaveProperty('azure');
+    expect(loaded.assistantAI).toEqual({ apiKey: '', model: 'gpt-4.1' });
+    expect(loaded.ai.temperature).toBe(0.4);
+    expect(loaded.theme).toBe('light');
+    expect(loaded.repProfile).toEqual(DEFAULT_SETTINGS.repProfile);
+    expect(loaded.renewalAI).toEqual(DEFAULT_SETTINGS.renewalAI);
   });
 
   it('resetSettings restores defaults', async () => {

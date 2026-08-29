@@ -4,7 +4,7 @@ import type { BulkRecipient, BulkRunRecord, GeneratedEmail, Settings } from '@/t
 import { createId, err, ok } from '@/utils';
 import type { Result } from '@/utils';
 
-import type { AIService } from '@/services/ai/azureOpenAIService';
+import type { AIService } from '@/services/ai/openAIChatService';
 import type { EmailService } from '@/services/email/gmailService';
 import { parseGeneratedEmail } from '@/services/email/emailGenerationService';
 
@@ -41,7 +41,7 @@ export async function generateBulkEmail(
   const messages = buildBulkEmailMessages(settings, input);
   const result = await ai.complete({
     messages,
-    model: settings.ai.model,
+    model: settings.assistantAI.model,
     temperature: settings.ai.temperature,
     maxTokens: settings.ai.maxTokens,
     signal,

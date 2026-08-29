@@ -97,7 +97,10 @@ export function useBulkReport() {
       try {
         const ai = createAIService(settings);
         if (!ai.isConfigured()) {
-          setPhase({ kind: 'error', message: 'Configure Azure OpenAI in Settings first.' });
+          setPhase({
+            kind: 'error',
+            message: 'Configure the OpenAI Assistant in Settings first.',
+          });
           return;
         }
         const count = recipients.filter((r) => r.selected).length;

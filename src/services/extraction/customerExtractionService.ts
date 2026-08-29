@@ -99,6 +99,13 @@ export interface ExtractionService {
   extractActiveCustomer(): Promise<Result<ExtractedCustomer>>;
 }
 
+export interface ExtractionServiceOptions {
+  /** Defaults to true for existing/demo callers. Renewal callers can disable it. */
+  allowSampleFallback?: boolean;
+  /** @deprecated Prefer `allowSampleFallback`. */
+  sampleFallback?: boolean;
+}
+
 /** Returns the labelled sample record. Used as a fallback off Salesforce. */
 export class SampleExtractionService implements ExtractionService {
   async extractActiveCustomer(): Promise<Result<ExtractedCustomer>> {
@@ -113,8 +120,13 @@ export class SampleExtractionService implements ExtractionService {
  * not a Salesforce page (e.g. the user is demoing the extension elsewhere).
  */
 export class MessagingExtractionService implements ExtractionService {
+  constructor(private readonly options: ExtractionServiceOptions = {}) {}
+
   async extractActiveCustomer(): Promise<Result<ExtractedCustomer>> {
     if (!(await activeTabIsSalesforce())) {
+      if ((this.options.allowSampleFallback ?? this.options.sampleFallback) === false) {
+        return err(new Error('The active tab is not a Salesforce page.'));
+      }
       log.info('active tab is not Salesforce — returning sample customer');
       return ok(freshSample());
     }
@@ -141,6 +153,6 @@ export class MessagingExtractionService implements ExtractionService {
   }
 }
 
-export function createExtractionService(): ExtractionService {
-  return new MessagingExtractionService();
+export function createExtractionService(options: ExtractionServiceOptions = {}): ExtractionService {
+  return new MessagingExtractionService(options);
 }

@@ -7,9 +7,7 @@ import { buildGmailComposeUrl, encodeRawMessage } from './gmailService';
 /** Decodes the base64url `raw` field back to the RFC 2822 message string. */
 function decodeRaw(encoded: string): string {
   const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-  return new TextDecoder().decode(
-    Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)),
-  );
+  return new TextDecoder().decode(Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)));
 }
 
 const draft: EmailDraft = {
@@ -56,9 +54,7 @@ describe('encodeRawMessage', () => {
   });
 
   it('omits Cc/Bcc headers when they are absent', () => {
-    const decoded = decodeRaw(
-      encodeRawMessage({ to: ['x@acme.com'], subject: 'S', body: 'B' }),
-    );
+    const decoded = decodeRaw(encodeRawMessage({ to: ['x@acme.com'], subject: 'S', body: 'B' }));
     expect(decoded).not.toContain('Cc:');
     expect(decoded).not.toContain('Bcc:');
   });

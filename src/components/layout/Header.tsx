@@ -1,11 +1,12 @@
 import { cn } from '@/utils';
 
-export type View = 'assistant' | 'email' | 'bulk' | 'settings';
+export type View = 'assistant' | 'email' | 'bulk' | 'renewal' | 'settings';
 
 const NAV: Array<{ id: View; label: string }> = [
   { id: 'assistant', label: 'Assistant' },
   { id: 'email', label: 'Email' },
   { id: 'bulk', label: 'Bulk' },
+  { id: 'renewal', label: 'Renewal' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -21,7 +22,7 @@ function LogoMark() {
 
 export function Header({ view, onNavigate }: { view: View; onNavigate: (view: View) => void }) {
   return (
-    <header className="flex shrink-0 items-center justify-between border-b border-edge bg-surface-1/80 px-3.5 py-2.5 backdrop-blur">
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-edge bg-surface-1/80 px-3.5 py-2.5 backdrop-blur">
       <div className="flex items-center gap-2.5">
         <LogoMark />
         <div className="flex flex-col leading-none">
@@ -31,7 +32,7 @@ export function Header({ view, onNavigate }: { view: View; onNavigate: (view: Vi
       </div>
 
       <nav
-        className="flex items-center gap-0.5 rounded-lg border border-edge bg-surface-2/60 p-0.5"
+        className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-edge bg-surface-2/60 p-0.5"
         aria-label="Main"
       >
         {NAV.map((item) => (
@@ -41,7 +42,7 @@ export function Header({ view, onNavigate }: { view: View; onNavigate: (view: Vi
             onClick={() => onNavigate(item.id)}
             aria-current={view === item.id ? 'page' : undefined}
             className={cn(
-              'rounded-md px-2.5 py-1 text-xs font-medium transition-all duration-150',
+              'shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-all duration-150',
               view === item.id
                 ? 'bg-surface-3 text-content-primary shadow-sm'
                 : 'text-content-secondary hover:text-content-primary',

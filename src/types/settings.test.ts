@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  DEFAULT_SETTINGS,
-  isAzureConfigured,
-  isValidAzureEndpoint,
-  parseSettings,
-} from './settings';
+import { DEFAULT_SETTINGS, isAssistantAIConfigured, parseSettings } from './settings';
 
 describe('parseSettings', () => {
   it('returns full defaults for undefined input', () => {
@@ -19,12 +14,33 @@ describe('parseSettings', () => {
   });
 
   it('deep-merges partial input over defaults', () => {
-    const parsed = parseSettings({ azure: { endpoint: 'https://x.openai.azure.com' } });
-    expect(parsed.azure.endpoint).toBe('https://x.openai.azure.com');
-    // Untouched siblings keep their defaults.
-    expect(parsed.azure.apiVersion).toBe(DEFAULT_SETTINGS.azure.apiVersion);
+    const parsed = parseSettings({
+      repProfile: { name: 'Alex' },
+      renewalAI: { apiKey: 'test-key' },
+      assistantAI: { apiKey: 'assistant-key' },
+    });
+    expect(parsed.assistantAI).toEqual({
+      ...DEFAULT_SETTINGS.assistantAI,
+      apiKey: 'assistant-key',
+    });
+    expect(parsed.repProfile).toEqual({ ...DEFAULT_SETTINGS.repProfile, name: 'Alex' });
+    expect(parsed.renewalAI).toEqual({ ...DEFAULT_SETTINGS.renewalAI, apiKey: 'test-key' });
     expect(parsed.ai).toEqual(DEFAULT_SETTINGS.ai);
     expect(parsed.theme).toBe('dark');
+  });
+
+  it('migrates the legacy AI model and drops obsolete Azure credentials', () => {
+    const parsed = parseSettings({
+      azure: { endpoint: 'https://legacy.openai.azure.com', apiKey: 'obsolete-key' },
+      ai: { model: 'gpt-4.1-mini' },
+      theme: 'light',
+    });
+
+    expect(parsed).not.toHaveProperty('azure');
+    expect(parsed.assistantAI).toEqual({ apiKey: '', model: 'gpt-4.1-mini' });
+    expect(parsed.theme).toBe('light');
+    expect(parsed.repProfile).toEqual(DEFAULT_SETTINGS.repProfile);
+    expect(parsed.renewalAI).toEqual(DEFAULT_SETTINGS.renewalAI);
   });
 
   it('falls back to defaults when a field is invalid', () => {
@@ -33,39 +49,23 @@ describe('parseSettings', () => {
   });
 
   it('trims whitespace on trimmed fields', () => {
-    const parsed = parseSettings({ azure: { endpoint: '  https://x  ' } });
-    expect(parsed.azure.endpoint).toBe('https://x');
+    const parsed = parseSettings({ assistantAI: { model: '  gpt-4o  ' } });
+    expect(parsed.assistantAI.model).toBe('gpt-4o');
   });
 });
 
-describe('isAzureConfigured', () => {
+describe('isAssistantAIConfigured', () => {
   it('is false with defaults', () => {
-    expect(isAzureConfigured(DEFAULT_SETTINGS)).toBe(false);
+    expect(isAssistantAIConfigured(DEFAULT_SETTINGS)).toBe(false);
   });
 
-  it('is true only when endpoint, deployment, and apiKey are all set', () => {
+  it('is true only when the separate Assistant key and model are set', () => {
     const configured = parseSettings({
-      azure: { endpoint: 'https://x', deployment: 'gpt', apiKey: 'k' },
+      assistantAI: { apiKey: 'k', model: 'gpt-4o' },
     });
-    expect(isAzureConfigured(configured)).toBe(true);
+    expect(isAssistantAIConfigured(configured)).toBe(true);
 
-    const missingKey = parseSettings({ azure: { endpoint: 'https://x', deployment: 'gpt' } });
-    expect(isAzureConfigured(missingKey)).toBe(false);
-  });
-});
-
-describe('isValidAzureEndpoint', () => {
-  it('treats an empty string as valid (not-yet-configured state)', () => {
-    expect(isValidAzureEndpoint('')).toBe(true);
-    expect(isValidAzureEndpoint('   ')).toBe(true);
-  });
-
-  it('accepts well-formed https URLs', () => {
-    expect(isValidAzureEndpoint('https://my-resource.openai.azure.com')).toBe(true);
-  });
-
-  it('rejects non-https and malformed URLs', () => {
-    expect(isValidAzureEndpoint('http://insecure.example.com')).toBe(false);
-    expect(isValidAzureEndpoint('not a url')).toBe(false);
+    const missingKey = parseSettings({ assistantAI: { apiKey: '', model: 'gpt-4o' } });
+    expect(isAssistantAIConfigured(missingKey)).toBe(false);
   });
 });
