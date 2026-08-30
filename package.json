@@ -1,6 +1,6 @@
 {
   "name": "siderep",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "AI-powered sales assistant Chrome side panel that reads the visible Salesforce page without Salesforce admin access, APIs, or a backend.",
   "type": "module",
@@ -18,9 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "icons": "node scripts/generate-icons.mjs",
-    "prebuild": "node scripts/generate-icons.mjs"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",

@@ -11,9 +11,6 @@ siderep-*.zip
 # Test / coverage
 coverage/
 
-# Generated extension icons (produced by `npm run icons`)
-public/icons/
-
 # Logs
 *.log
 npm-debug.log*

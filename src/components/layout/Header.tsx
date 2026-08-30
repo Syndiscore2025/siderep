@@ -10,14 +10,9 @@ const NAV: Array<{ id: View; label: string }> = [
   { id: 'settings', label: 'Settings' },
 ];
 
-/** Compact logo mark: gradient tile with the SideRep monogram. */
+/** Compact brand mark shared with the extension toolbar and store listing. */
 function LogoMark() {
-  return (
-    <div className="relative flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-muted shadow-sm">
-      <span className="text-[11px] font-bold tracking-tight text-white">SR</span>
-      <span className="absolute inset-0 rounded-lg ring-1 ring-inset ring-white/10" />
-    </div>
-  );
+  return <img src="/icons/icon-128.png" alt="" className="size-7 rounded-lg shadow-sm" />;
 }
 
 export function Header({ view, onNavigate }: { view: View; onNavigate: (view: View) => void }) {
