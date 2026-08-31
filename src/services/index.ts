@@ -40,6 +40,7 @@ export {
   MAX_RENEWAL_ACCOUNTS,
   MAX_RENEWAL_SEARCH_RESULTS,
   MAX_RENEWAL_HISTORY_BYTES,
+  MAX_WEB_RENEWAL_HISTORY_BYTES,
   RenewalHistorySaveError,
   migrateRenewalHistory,
   loadRenewalHistory,
@@ -64,6 +65,14 @@ export {
 export type { ExtractionService } from './extraction/customerExtractionService';
 export type { ExtractionServiceOptions } from './extraction/customerExtractionService';
 export { parseSalesforceRecord } from './extraction/salesforceParser';
+export {
+  MAX_MANUAL_CUSTOMER_INPUT_LENGTH,
+  MAX_MANUAL_CUSTOMER_FIELDS,
+  MAX_MANUAL_CUSTOMER_LABEL_LENGTH,
+  MAX_MANUAL_CUSTOMER_VALUE_LENGTH,
+  ManualCustomerParseError,
+  parseManualCustomer,
+} from './extraction/manualCustomerParser';
 export {
   MAX_RENEWAL_STRING_LENGTH,
   MAX_RENEWAL_URL_LENGTH,
@@ -100,6 +109,13 @@ export {
 } from './bulk/bulkSendService';
 export type { BulkSendProgress, BulkSendOptions } from './bulk/bulkSendService';
 export { loadBulkRuns, recordBulkRun, clearBulkRuns } from './bulk/bulkRunHistoryService';
+export {
+  MAX_MANUAL_RECIPIENT_INPUT_LENGTH,
+  MAX_MANUAL_RECIPIENT_LINE_LENGTH,
+  MAX_MANUAL_RECIPIENTS,
+  ManualRecipientParseError,
+  parseManualRecipients,
+} from './bulk/manualRecipientParser';
 
 export { sendRuntimeMessage, sendTabMessage, getActiveTabId } from './messaging/runtimeMessaging';
 

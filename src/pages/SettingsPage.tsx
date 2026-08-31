@@ -17,6 +17,7 @@ import { useResetSettings, useSaveSettings, useSettings } from '@/hooks/useSetti
 import { createAIService, createEmailService } from '@/services';
 import { EMAIL_DELIVERY_MODES, SUGGESTED_MODELS, THEMES, isAssistantAIConfigured } from '@/types';
 import type { EmailDeliveryMode, Settings, Theme } from '@/types';
+import { isExtensionContext } from '@/utils/platform';
 
 type TestState =
   | { status: 'idle' }
@@ -30,23 +31,29 @@ const DELIVERY_MODE_LABEL: Record<EmailDeliveryMode, string> = {
   manual_composer: 'Copy to clipboard (manual)',
 };
 
+function settingsForPlatform(settings: Settings, extension: boolean): Settings {
+  if (extension || settings.email.deliveryMode !== 'gmail_api') return settings;
+  return { ...settings, email: { ...settings.email, deliveryMode: 'gmail_compose_url' } };
+}
+
 /**
  * Configuration only — nothing on this page ever touches customer data.
- * Values are persisted via the settings service (`chrome.storage.local`).
+ * Values are persisted by the platform-specific settings storage adapter.
  */
 export function SettingsPage() {
   const { settings, isLoading } = useSettings();
   const saveSettings = useSaveSettings();
   const resetSettings = useResetSettings();
+  const extension = isExtensionContext();
 
-  const [form, setForm] = useState<Settings>(settings);
+  const [form, setForm] = useState<Settings>(() => settingsForPlatform(settings, extension));
   const [showAssistantApiKey, setShowAssistantApiKey] = useState(false);
   const [showRenewalApiKey, setShowRenewalApiKey] = useState(false);
   const [test, setTest] = useState<TestState>({ status: 'idle' });
   const [google, setGoogle] = useState<TestState>({ status: 'idle' });
 
   // Re-sync the local form whenever persisted settings change (load/reset).
-  useEffect(() => setForm(settings), [settings]);
+  useEffect(() => setForm(settingsForPlatform(settings, extension)), [extension, settings]);
 
   const renewalConfigured =
     form.renewalAI.apiKey.trim().length > 0 && form.renewalAI.model.trim().length > 0;
@@ -58,6 +65,7 @@ export function SettingsPage() {
   };
 
   const connectGoogle = async () => {
+    if (!extension) return;
     setGoogle({ status: 'testing' });
     const auth = await createEmailService(form).authorize(true);
     if (!auth.ok) {
@@ -164,7 +172,8 @@ export function SettingsPage() {
               />
             </Field>
             <p className="text-[11px] text-content-muted">
-              Stored in chrome.storage.local on this device only. Your API key is never logged.
+              Stored in {extension ? 'chrome.storage.local' : 'localStorage'} on this device only.
+              Your API key is never logged.
             </p>
           </div>
         </Card>
@@ -307,11 +316,13 @@ export function SettingsPage() {
                   patch('email', { deliveryMode: e.target.value as EmailDeliveryMode })
                 }
               >
-                {EMAIL_DELIVERY_MODES.map((mode) => (
-                  <option key={mode} value={mode}>
-                    {DELIVERY_MODE_LABEL[mode]}
-                  </option>
-                ))}
+                {EMAIL_DELIVERY_MODES.filter((mode) => extension || mode !== 'gmail_api').map(
+                  (mode) => (
+                    <option key={mode} value={mode}>
+                      {DELIVERY_MODE_LABEL[mode]}
+                    </option>
+                  ),
+                )}
               </Select>
             </Field>
             <Field
@@ -352,24 +363,26 @@ export function SettingsPage() {
           </div>
         </Card>
 
-        <Card title="Google Account">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-content-muted">
-              {form.google.connectedEmail ??
-                'Not connected. Required only for the Gmail API delivery mode.'}
-            </p>
-            <Button
-              size="sm"
-              onClick={() => void connectGoogle()}
-              loading={google.status === 'testing'}
-            >
-              {form.google.connectedEmail ? 'Reconnect' : 'Connect Google'}
-            </Button>
-          </div>
-          {google.status === 'error' && (
-            <p className="mt-2 animate-fade-in text-[11px] text-danger">{google.message}</p>
-          )}
-        </Card>
+        {extension && (
+          <Card title="Google Account">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-content-muted">
+                {form.google.connectedEmail ??
+                  'Not connected. Required only for the Gmail API delivery mode.'}
+              </p>
+              <Button
+                size="sm"
+                onClick={() => void connectGoogle()}
+                loading={google.status === 'testing'}
+              >
+                {form.google.connectedEmail ? 'Reconnect' : 'Connect Google'}
+              </Button>
+            </div>
+            {google.status === 'error' && (
+              <p className="mt-2 animate-fade-in text-[11px] text-danger">{google.message}</p>
+            )}
+          </Card>
+        )}
 
         <Card title="Appearance">
           <Field label="Theme">

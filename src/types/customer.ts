@@ -5,7 +5,7 @@
  * is open. Nothing in this module is ever written to disk, storage, or logs.
  */
 
-/** A single field read from the currently visible Salesforce page. */
+/** A single customer field held in the active in-memory session. */
 export interface CustomerField {
   /** Stable machine key, e.g. `accountName`. */
   key: string;
@@ -13,7 +13,7 @@ export interface CustomerField {
   label: string;
   /** The value exactly as rendered on the page. */
   value: string;
-  /** Where on the page the value was read from (shown for transparency). */
+  /** Where the value came from (shown for transparency). */
   source?: string;
   /**
    * Whether the user has explicitly approved sending this field to the AI.
@@ -24,6 +24,8 @@ export interface CustomerField {
 
 /** The set of fields extracted for the currently active record. */
 export interface ExtractedCustomer {
+  /** How this in-memory customer was loaded. */
+  source?: 'salesforce' | 'sample' | 'manual';
   /** Best-effort display name for the current record. */
   displayName: string;
   /** Salesforce object type if detectable (Account, Contact, Opportunity…). */

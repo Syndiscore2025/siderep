@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+dist-web/
 *.local
 
 # Packaged extension uploads (produced for the Chrome Web Store)

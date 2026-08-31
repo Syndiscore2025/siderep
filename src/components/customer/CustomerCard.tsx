@@ -15,6 +15,9 @@ import { useSession } from '@/hooks/useSession';
 import { createExtractionService } from '@/services';
 import { approvedFields } from '@/types';
 import { cn } from '@/utils';
+import { isExtensionContext } from '@/utils/platform';
+
+import { ManualCustomerInput } from './ManualCustomerInput';
 
 /**
  * Shows the active customer session and the per-field approval toggles.
@@ -23,6 +26,7 @@ import { cn } from '@/utils';
  */
 export function CustomerCard() {
   const { customer, setCustomer, toggleFieldApproval, clearSession } = useSession();
+  const extension = isExtensionContext();
 
   const readCustomer = useMutation({
     mutationFn: async () => {
@@ -34,6 +38,13 @@ export function CustomerCard() {
   });
 
   if (!customer) {
+    if (!extension) {
+      return (
+        <Card title="Customer" icon={<UserIcon className="size-3.5" />}>
+          <ManualCustomerInput onLoad={setCustomer} />
+        </Card>
+      );
+    }
     return (
       <Card title="Customer" icon={<UserIcon className="size-3.5" />}>
         <EmptyState
@@ -61,7 +72,8 @@ export function CustomerCard() {
   }
 
   const approvedCount = approvedFields(customer).length;
-  const isSample = customer.fields.some((field) => field.source === 'sample');
+  const isSample =
+    customer.source === 'sample' || customer.fields.some((field) => field.source === 'sample');
 
   return (
     <Card
@@ -115,15 +127,17 @@ export function CustomerCard() {
       </div>
 
       <div className="mt-2 flex items-center justify-end gap-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          icon={<RefreshIcon className="size-3.5" />}
-          loading={readCustomer.isPending}
-          onClick={() => readCustomer.mutate()}
-        >
-          Re-read
-        </Button>
+        {extension && customer.source !== 'manual' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<RefreshIcon className="size-3.5" />}
+            loading={readCustomer.isPending}
+            onClick={() => readCustomer.mutate()}
+          >
+            Re-read
+          </Button>
+        )}
         <Button
           size="sm"
           variant="danger"

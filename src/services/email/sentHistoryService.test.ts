@@ -51,10 +51,49 @@ describe('sentHistoryService', () => {
   });
 
   it('never stores raw customer fields — only the sent artifact shape', async () => {
-    await recordSentEmail(makeRecord('a'));
+    await recordSentEmail({
+      ...makeRecord('a'),
+      rawCustomer: { account: 'Acme' },
+    } as SentEmailRecord);
     const [stored] = await loadSentEmails();
     expect(Object.keys(stored).sort()).toEqual(
       ['body', 'deliveryMode', 'id', 'sentAt', 'subject', 'to'].sort(),
     );
+  });
+
+  it('normalizes valid optional identifiers and strips unknown stored fields', async () => {
+    const raw = {
+      ...makeRecord('with-ids'),
+      messageId: 'message-1',
+      threadId: 'thread-1',
+      customerPayload: { secret: true },
+    };
+    await chrome.storage.local.set({ 'siderep.sentEmails': [raw] });
+
+    await expect(loadSentEmails()).resolves.toEqual([
+      {
+        ...makeRecord('with-ids'),
+        sentAt: raw.sentAt,
+        messageId: 'message-1',
+        threadId: 'thread-1',
+      },
+    ]);
+  });
+
+  it.each([
+    ['empty id', { id: '' }],
+    ['invalid recipients', { to: ['valid@example.com', 42] }],
+    ['invalid subject', { subject: null }],
+    ['invalid body', { body: 42 }],
+    ['unknown delivery mode', { deliveryMode: 'smtp' }],
+    ['invalid sent date', { sentAt: 'yesterday' }],
+    ['invalid message id', { messageId: 42 }],
+    ['invalid thread id', { threadId: null }],
+  ])('rejects a record with %s', async (_name, override) => {
+    await chrome.storage.local.set({
+      'siderep.sentEmails': [{ ...makeRecord('invalid'), ...override }],
+    });
+
+    await expect(loadSentEmails()).resolves.toEqual([]);
   });
 });

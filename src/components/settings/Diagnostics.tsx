@@ -4,6 +4,7 @@ import { Badge, Button, Card, RefreshIcon, ShieldIcon } from '@/components/ui';
 import { useSettings } from '@/hooks/useSettings';
 import { runDiagnostics } from '@/services';
 import type { CheckResult, CheckStatus } from '@/services';
+import { isExtensionContext } from '@/utils/platform';
 
 const STATUS_TONE: Record<CheckStatus, 'success' | 'danger' | 'neutral'> = {
   pass: 'success',
@@ -18,13 +19,12 @@ const STATUS_LABEL: Record<CheckStatus, string> = {
 };
 
 /**
- * Live connectivity checks for every integration (OpenAI, Gmail, Salesforce,
- * storage). Runs on demand with the user's real credentials — a Gmail check
- * may prompt for Google authorization. Diagnostics does not add history records
- * or persist Salesforce extraction results.
+ * Live connectivity checks for platform-supported integrations. Extension-only
+ * checks are explained and skipped on web without requesting Google access.
  */
 export function Diagnostics() {
   const { settings } = useSettings();
+  const extension = isExtensionContext();
   const [results, setResults] = useState<CheckResult[] | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -55,8 +55,9 @@ export function Diagnostics() {
     >
       {results === null ? (
         <p className="px-1 py-1 text-xs text-content-muted">
-          Verify that every endpoint connects with your current settings. The Gmail check may prompt
-          for Google sign-in.
+          {extension
+            ? 'Verify that every endpoint connects with your current settings. The Gmail check may prompt for Google sign-in.'
+            : 'Storage and OpenAI checks run on web. Gmail API and Salesforce checks are extension-only and are skipped without a Google sign-in prompt.'}
         </p>
       ) : (
         <ul className="space-y-1.5">

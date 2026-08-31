@@ -122,6 +122,8 @@ export async function sendBulkEmail(
 
   const record: BulkRunRecord = {
     id: createId(),
+    action: 'sent',
+    deliveryMode: 'gmail_api',
     ranAt: new Date().toISOString(),
     matched: counts.matched,
     attempted,

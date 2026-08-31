@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { BulkOutputPanel } from '@/components/bulk/BulkOutputPanel';
 import { BulkRecipientTable } from '@/components/bulk/BulkRecipientTable';
 import {
   Badge,
@@ -14,12 +15,19 @@ import {
   Textarea,
 } from '@/components/ui';
 import { useBulkReport } from '@/hooks/useBulkReport';
+import { MAX_MANUAL_RECIPIENT_INPUT_LENGTH } from '@/services';
+import type { EmailDeliveryMode } from '@/types';
+
+const MODE_LABEL: Record<EmailDeliveryMode, string> = {
+  gmail_api: 'Gmail API',
+  gmail_compose_url: 'Gmail compose',
+  manual_composer: 'Manual',
+};
 
 /**
- * Bulk report → email workspace. The rep extracts a Salesforce report, reviews
- * matched recipients, describes the campaign, drafts ONE shared email with the
- * AI, then explicitly approves the send. Nothing sends automatically and no
- * customer data is persisted.
+ * Bulk workspace. Extension users extract a report and send through Gmail API;
+ * web users paste recipients and prepare copyable output. Recipient data stays
+ * in memory and only aggregate run metadata is persisted.
  */
 export function BulkComposer() {
   const bulk = useBulkReport();
@@ -29,6 +37,7 @@ export function BulkComposer() {
   const [emailType, setEmailType] = useState('a friendly quarterly check-in');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [manualRecipients, setManualRecipients] = useState('');
 
   useEffect(() => {
     if (bulk.draft) {
@@ -40,36 +49,67 @@ export function BulkComposer() {
   const isBusy =
     phase.kind === 'extracting' || phase.kind === 'generating' || phase.kind === 'sending';
   const hasReport = bulk.report !== null;
+  const isPrepared = phase.kind === 'prepared';
 
   return (
     <Card
-      title="Bulk from report"
+      title={bulk.extensionContext ? 'Bulk from report' : 'Prepare bulk email'}
       icon={<SparklesIcon className="size-3.5" />}
-      action={<Badge tone="neutral">Gmail API</Badge>}
+      action={<Badge tone="neutral">{MODE_LABEL[bulk.deliveryMode]}</Badge>}
     >
       <div className="space-y-3">
         {!hasReport && phase.kind !== 'sent' && (
           <>
-            <p className="text-[11px] text-content-muted">
-              Open a Salesforce report in run mode, then extract it here. Rows stay in memory only —
-              nothing about the accounts is stored.
-            </p>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<RefreshIcon className="size-3.5" />}
-              loading={phase.kind === 'extracting'}
-              onClick={() => void bulk.extract()}
-            >
-              Extract report from page
-            </Button>
+            {bulk.extensionContext ? (
+              <>
+                <p className="text-[11px] text-content-muted">
+                  Open a Salesforce report in run mode, then extract it here. Rows stay in memory
+                  only — nothing about the accounts is stored.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<RefreshIcon className="size-3.5" />}
+                  loading={phase.kind === 'extracting'}
+                  onClick={() => void bulk.extract()}
+                >
+                  Extract report from page
+                </Button>
+              </>
+            ) : (
+              <>
+                <Field
+                  label="Paste recipients"
+                  hint="One per line: email, Name <email>, CSV, or tab-separated. Up to 200 unique recipients. Values stay in memory only."
+                >
+                  <Textarea
+                    aria-label="Paste recipients"
+                    maxLength={MAX_MANUAL_RECIPIENT_INPUT_LENGTH}
+                    rows={7}
+                    value={manualRecipients}
+                    onChange={(event) => setManualRecipients(event.target.value)}
+                    placeholder={'Name,Email,Status\nAcme,owner@example.com,Active'}
+                  />
+                </Field>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!manualRecipients.trim()}
+                  onClick={() => bulk.loadManualRecipients(manualRecipients)}
+                >
+                  Load recipients
+                </Button>
+              </>
+            )}
           </>
         )}
 
         {hasReport && phase.kind !== 'sent' && (
           <>
             <Field
-              label="Skip accounts with status"
+              label={
+                bulk.extensionContext ? 'Skip accounts with status' : 'Skip recipients with status'
+              }
               hint="Comma-separated. Matched as substrings, case-insensitive."
             >
               <Input
@@ -117,8 +157,16 @@ export function BulkComposer() {
                   <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
                 </Field>
                 <Field
-                  label="Body (sent to every selected recipient)"
-                  hint="Review and edit before sending — nothing sends automatically."
+                  label={
+                    bulk.extensionContext
+                      ? 'Body (sent to every selected recipient)'
+                      : 'Body (prepared for every selected recipient)'
+                  }
+                  hint={
+                    bulk.extensionContext
+                      ? 'Review and edit before sending — nothing sends automatically.'
+                      : 'Review and edit before preparing copyable output or Gmail compose links.'
+                  }
                 >
                   <Textarea rows={8} value={body} onChange={(e) => setBody(e.target.value)} />
                 </Field>
@@ -129,16 +177,29 @@ export function BulkComposer() {
                   </p>
                 )}
 
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={<SendIcon className="size-3.5" />}
-                  loading={phase.kind === 'sending'}
-                  disabled={!body.trim() || bulk.selectedCount === 0 || isBusy}
-                  onClick={() => void bulk.approveAndSend({ to: [], subject, body })}
-                >
-                  Send to {bulk.selectedCount} approved
-                </Button>
+                {!isPrepared && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={bulk.extensionContext ? <SendIcon className="size-3.5" /> : undefined}
+                    loading={phase.kind === 'sending'}
+                    disabled={!body.trim() || bulk.selectedCount === 0 || isBusy}
+                    onClick={() => void bulk.approveAndSend({ to: [], subject, body })}
+                  >
+                    {bulk.extensionContext
+                      ? `Send to ${bulk.selectedCount} approved`
+                      : `Prepare output for ${bulk.selectedCount}`}
+                  </Button>
+                )}
+
+                {!bulk.extensionContext && isPrepared && bulk.deliveryMode !== 'gmail_api' && (
+                  <BulkOutputPanel
+                    recipients={bulk.recipients}
+                    subject={subject}
+                    body={body}
+                    deliveryMode={bulk.deliveryMode}
+                  />
+                )}
               </div>
             )}
           </>

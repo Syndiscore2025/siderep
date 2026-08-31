@@ -54,7 +54,7 @@ export function BulkRecipientTable({
 
       {recipients.length === 0 ? (
         <p className="rounded-lg border border-edge bg-surface-2/40 px-3 py-2 text-[11px] text-content-muted">
-          No matching recipients. Adjust the excluded statuses or extract a different report.
+          No matching recipients. Adjust the excluded statuses or load a different recipient list.
         </p>
       ) : (
         <ul className="max-h-64 space-y-1 overflow-y-auto">

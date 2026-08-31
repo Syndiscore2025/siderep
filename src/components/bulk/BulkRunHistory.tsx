@@ -62,7 +62,7 @@ export function BulkRunHistory() {
             >
               <span className="min-w-0">
                 <span className="block text-xs font-medium text-content-primary">
-                  {record.succeeded} sent
+                  {record.succeeded} {record.action === 'prepared' ? 'prepared' : 'sent'}
                   {record.failed > 0 ? ` · ${record.failed} failed` : ''}
                 </span>
                 <span className="mt-0.5 block text-[11px] text-content-muted">
