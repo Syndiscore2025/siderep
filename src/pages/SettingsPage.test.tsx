@@ -7,8 +7,12 @@ import { loadSettings } from '@/services';
 
 import { SettingsPage } from './SettingsPage';
 
+const platform = vi.hoisted(() => ({ extension: true }));
+vi.mock('@/utils/platform', () => ({ isExtensionContext: () => platform.extension }));
+
 afterEach(() => {
   cleanup();
+  platform.extension = true;
   vi.restoreAllMocks();
 });
 
@@ -53,5 +57,33 @@ describe('SettingsPage Assistant OpenAI configuration', () => {
       });
       expect(settings.renewalAI).toEqual({ apiKey: '', model: '' });
     });
+  });
+});
+
+describe('SettingsPage platform controls', () => {
+  it('retains Gmail API and Google Account controls in the extension', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Google Account' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Send directly via Gmail API' })).toBeInTheDocument();
+    expect(screen.getByText(/chrome\.storage\.local on this device/i)).toBeInTheDocument();
+  });
+
+  it('hides extension-only controls and normalizes the default Gmail API mode on web', async () => {
+    platform.extension = false;
+    renderPage();
+
+    const select = await screen.findByRole('combobox', { name: /Delivery mode/ });
+    expect(select).toHaveValue('gmail_compose_url');
+    expect(
+      screen.queryByRole('option', { name: 'Send directly via Gmail API' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Google Account' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Connect Google|Reconnect/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/localStorage on this device/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/extension-only.*without a Google sign-in prompt/i),
+    ).toBeInTheDocument();
   });
 });

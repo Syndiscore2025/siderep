@@ -2,8 +2,30 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SETTINGS } from '@/types';
 import type { Settings } from '@/types';
+import type * as CustomerExtractionModule from '@/services/extraction/customerExtractionService';
+import type * as GmailModule from '@/services/email/gmailService';
 
-import { checkAssistantOpenAI, checkGmail, checkStorage } from './diagnosticsService';
+import {
+  checkAssistantOpenAI,
+  checkGmail,
+  checkSalesforce,
+  checkStorage,
+} from './diagnosticsService';
+
+const mocks = vi.hoisted(() => ({
+  extension: true,
+  emailFactory: vi.fn(),
+  extractionFactory: vi.fn(),
+}));
+vi.mock('@/utils/platform', () => ({ isExtensionContext: () => mocks.extension }));
+vi.mock('@/services/email/gmailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof GmailModule>()),
+  createEmailService: mocks.emailFactory,
+}));
+vi.mock('@/services/extraction/customerExtractionService', async (importOriginal) => ({
+  ...(await importOriginal<typeof CustomerExtractionModule>()),
+  createExtractionService: mocks.extractionFactory,
+}));
 
 const CONFIGURED_ASSISTANT: Settings = {
   ...DEFAULT_SETTINGS,
@@ -18,6 +40,9 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 afterEach(() => {
+  mocks.extension = true;
+  mocks.emailFactory.mockReset();
+  mocks.extractionFactory.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -65,5 +90,23 @@ describe('checkGmail', () => {
     const result = await checkGmail(settings);
     expect(result.status).toBe('skip');
     expect(result.detail).toContain('gmail_compose_url');
+  });
+
+  it('skips before creating an OAuth service on web', async () => {
+    mocks.extension = false;
+    const result = await checkGmail(DEFAULT_SETTINGS);
+    expect(result).toMatchObject({ status: 'skip' });
+    expect(result.detail).toMatch(/extension-only.*does not request Google access/i);
+    expect(mocks.emailFactory).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkSalesforce', () => {
+  it('skips before creating the Chrome extraction service on web', async () => {
+    mocks.extension = false;
+    const result = await checkSalesforce();
+    expect(result).toMatchObject({ status: 'skip' });
+    expect(result.detail).toMatch(/extension-only/i);
+    expect(mocks.extractionFactory).not.toHaveBeenCalled();
   });
 });

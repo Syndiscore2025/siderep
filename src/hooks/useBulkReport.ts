@@ -7,6 +7,7 @@ import {
   createReportExtractionService,
   filterReport,
   generateBulkEmail,
+  parseManualRecipients,
   parseExcludedStatusesInput,
   recordBulkRun,
   sendBulkEmail,
@@ -14,8 +15,16 @@ import {
   toggleRecipient,
 } from '@/services';
 import type { BulkSendProgress } from '@/services';
-import type { BulkRecipient, ExtractedReport, GeneratedEmail, SkippedRow } from '@/types';
-import { toError } from '@/utils';
+import type {
+  BulkRecipient,
+  BulkRunRecord,
+  EmailDeliveryMode,
+  ExtractedReport,
+  GeneratedEmail,
+  SkippedRow,
+} from '@/types';
+import { createId, toError } from '@/utils';
+import { isExtensionContext } from '@/utils/platform';
 
 import { useRefreshBulkRuns } from './useBulkRuns';
 import { useSettings } from './useSettings';
@@ -33,11 +42,18 @@ export type BulkPhase =
   | { kind: 'generating' }
   | { kind: 'sending'; progress: BulkSendProgress }
   | { kind: 'sent'; succeeded: number; failed: number }
+  | { kind: 'prepared'; count: number }
   | { kind: 'error'; message: string };
 
 export function useBulkReport() {
   const { settings } = useSettings();
   const refreshRuns = useRefreshBulkRuns();
+  const extensionContext = isExtensionContext();
+  const deliveryMode: EmailDeliveryMode = extensionContext
+    ? 'gmail_api'
+    : settings.email.deliveryMode === 'gmail_api'
+      ? 'gmail_compose_url'
+      : settings.email.deliveryMode;
   const [phase, setPhase] = useState<BulkPhase>({ kind: 'idle' });
   const [report, setReport] = useState<ExtractedReport | null>(null);
   const [recipients, setRecipients] = useState<BulkRecipient[]>([]);
@@ -61,6 +77,10 @@ export function useBulkReport() {
   );
 
   const extract = useCallback(async () => {
+    if (!extensionContext) {
+      setPhase({ kind: 'error', message: 'Paste recipients to prepare bulk email output.' });
+      return;
+    }
     setPhase({ kind: 'extracting' });
     try {
       const result = await createReportExtractionService().extractActiveReport();
@@ -74,7 +94,23 @@ export function useBulkReport() {
     } catch (error) {
       setPhase({ kind: 'error', message: toError(error).message });
     }
-  }, [applyFilter]);
+  }, [applyFilter, extensionContext]);
+
+  const loadManualRecipients = useCallback(
+    (input: string) => {
+      const result = parseManualRecipients(input);
+      if (!result.ok) {
+        setPhase({ kind: 'error', message: result.error.message });
+        return false;
+      }
+      setReport(result.value);
+      applyFilter(result.value);
+      setDraft(null);
+      setPhase({ kind: 'review' });
+      return true;
+    },
+    [applyFilter],
+  );
 
   /** Re-run the status filter after the user edits the excluded list. */
   const refilter = useCallback(() => {
@@ -125,9 +161,36 @@ export function useBulkReport() {
     [recipients, settings],
   );
 
-  /** The mandatory approval gate — a bulk send only ever happens from here. */
+  /** Mandatory approval gate: sends in the extension, prepares output on web. */
   const approveAndSend = useCallback(
     async (email: GeneratedEmail) => {
+      if (!extensionContext) {
+        const count = recipients.filter((recipient) => recipient.selected).length;
+        if (count === 0 || !email.body.trim()) {
+          setPhase({
+            kind: 'error',
+            message: 'Select a recipient and add a body before preparing output.',
+          });
+          return;
+        }
+        const record: BulkRunRecord = {
+          id: createId(),
+          action: 'prepared',
+          deliveryMode,
+          ranAt: new Date().toISOString(),
+          matched: recipients.length,
+          attempted: count,
+          succeeded: count,
+          failed: 0,
+          skipped: skipped.length,
+          status: 'complete',
+        };
+        setDraft(email);
+        setPhase({ kind: 'prepared', count });
+        await recordBulkRun(record);
+        void refreshRuns();
+        return;
+      }
       const controller = new AbortController();
       abortRef.current = controller;
       setPhase({ kind: 'sending', progress: { completed: 0, total: 0, lastOk: true } });
@@ -160,7 +223,7 @@ export function useBulkReport() {
         abortRef.current = null;
       }
     },
-    [recipients, refreshRuns, settings, skipped.length],
+    [deliveryMode, extensionContext, recipients, refreshRuns, settings, skipped.length],
   );
 
   const reset = useCallback(() => {
@@ -185,8 +248,10 @@ export function useBulkReport() {
     excludedInput,
     setExcludedInput,
     selectedCount,
-    deliveryMode: settings.email.deliveryMode,
+    extensionContext,
+    deliveryMode,
     extract,
+    loadManualRecipients,
     refilter,
     toggle,
     selectAll,

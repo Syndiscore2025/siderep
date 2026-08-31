@@ -9,6 +9,7 @@ import {
 } from '@/services';
 import type { EmailDeliveryMode, EmailResult, GeneratedEmail, SentEmailRecord } from '@/types';
 import { createId, toError } from '@/utils';
+import { isExtensionContext } from '@/utils/platform';
 
 import { useRefreshSentHistory } from './useSentHistory';
 import { useSession } from './useSession';
@@ -37,7 +38,10 @@ export function useEmail() {
   const [phase, setPhase] = useState<EmailPhase>({ kind: 'idle' });
   const abortRef = useRef<AbortController | null>(null);
 
-  const deliveryMode = settings.email.deliveryMode;
+  const deliveryMode: EmailDeliveryMode =
+    !isExtensionContext() && settings.email.deliveryMode === 'gmail_api'
+      ? 'gmail_compose_url'
+      : settings.email.deliveryMode;
 
   const generate = useCallback(
     async (instruction?: string) => {
@@ -108,6 +112,13 @@ export function useEmail() {
         }
         if (deliveryMode === 'manual_composer') {
           await finalize('manual_composer', email);
+          return;
+        }
+        // Defense in depth: web callers must never instantiate the Chrome OAuth service.
+        if (!isExtensionContext()) {
+          const url = buildGmailComposeUrl(emailDraft);
+          window.open(url, '_blank', 'noopener');
+          await finalize('gmail_compose_url', email);
           return;
         }
         const service = createEmailService(settings);

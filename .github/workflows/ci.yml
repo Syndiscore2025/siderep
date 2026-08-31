@@ -39,9 +39,29 @@ jobs:
       - name: Build extension
         run: npm run build
 
+      - name: Build web app
+        run: npm run build:web
+
+      - name: Verify build boundaries
+        run: |
+          test -f dist/manifest.json
+          test -f dist-web/index.html
+          grep -Fq 'Content-Security-Policy' dist-web/index.html
+          grep -Fq "script-src 'self' 'nonce-siderep-web-csp'" dist-web/index.html
+          ! grep -Fq "'unsafe-inline'" dist-web/index.html
+          ! find dist-web -type f \( -name '*service-worker*' -o -name '*content-script*' \) | grep -q .
+          ! grep -R -F '@supabase/supabase-js' dist --include='*.js'
+
       - name: Upload extension bundle
         uses: actions/upload-artifact@v4
         with:
           name: siderep-dist
           path: dist/
+          retention-days: 14
+
+      - name: Upload web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: siderep-dist-web
+          path: dist-web/
           retention-days: 14

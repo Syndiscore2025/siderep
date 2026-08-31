@@ -12,10 +12,13 @@ import type {
 } from '@/types';
 import { createId, logger } from '@/utils';
 
+import { platformStorage } from '@/services/storage/platformStorage';
+
 export const RENEWAL_HISTORY_STORAGE_KEY = 'siderep.renewalHistory';
 export const MAX_RENEWAL_ACCOUNTS = 500;
 export const MAX_RENEWAL_SEARCH_RESULTS = 50;
 export const MAX_RENEWAL_HISTORY_BYTES = 8 * 1024 * 1024;
+export const MAX_WEB_RENEWAL_HISTORY_BYTES = 3 * 1024 * 1024;
 const MAX_CYCLES_PER_ACCOUNT = 100;
 const MAX_EMAILS_PER_CYCLE = 1_000;
 const MAX_ID_LENGTH = 200;
@@ -53,10 +56,6 @@ export interface RecordCopiedRenewalEmailResult {
 }
 
 const emptyHistory = (): RenewalHistoryStore => ({ schemaVersion: 1, accounts: [] });
-
-function storageArea(): chrome.storage.StorageArea | null {
-  return typeof chrome !== 'undefined' && chrome.storage?.local ? chrome.storage.local : null;
-}
 
 function recordOf(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -195,16 +194,13 @@ export function migrateRenewalHistory(raw: unknown): RenewalHistoryStore {
   return { schemaVersion: 1, accounts };
 }
 
-async function readRaw(area: chrome.storage.StorageArea): Promise<unknown> {
-  const stored = await area.get(RENEWAL_HISTORY_STORAGE_KEY);
-  return stored?.[RENEWAL_HISTORY_STORAGE_KEY];
+async function readRaw(): Promise<unknown> {
+  return platformStorage.get(RENEWAL_HISTORY_STORAGE_KEY);
 }
 
 export async function loadRenewalHistory(): Promise<RenewalHistoryStore> {
-  const area = storageArea();
-  if (!area) return emptyHistory();
   try {
-    return migrateRenewalHistory(await readRaw(area));
+    return migrateRenewalHistory(await readRaw());
   } catch (error) {
     log.error('failed to load renewal history', error);
     return emptyHistory();
@@ -295,18 +291,17 @@ function isQuotaError(error: unknown): boolean {
   return /quota|QUOTA_BYTES/i.test(message);
 }
 
-async function commitWithQuotaRetry(
-  area: chrome.storage.StorageArea,
-  history: RenewalHistoryStore,
-): Promise<void> {
-  if (!enforceCollectionBounds(history) || !pruneToBytes(history, MAX_RENEWAL_HISTORY_BYTES)) {
+async function commitWithQuotaRetry(history: RenewalHistoryStore): Promise<void> {
+  const maxBytes =
+    platformStorage.kind === 'chrome' ? MAX_RENEWAL_HISTORY_BYTES : MAX_WEB_RENEWAL_HISTORY_BYTES;
+  if (!enforceCollectionBounds(history) || !pruneToBytes(history, maxBytes)) {
     throw new RenewalHistorySaveError(
       'quota_exceeded',
       'The active Renewal history is too large to save.',
     );
   }
   try {
-    await area.set({ [RENEWAL_HISTORY_STORAGE_KEY]: history });
+    await platformStorage.set(RENEWAL_HISTORY_STORAGE_KEY, history);
   } catch (error) {
     if (!isQuotaError(error)) throw error;
     const retryTarget = Math.max(0, Math.floor(serializedBytes(history) * 0.75));
@@ -320,7 +315,7 @@ async function commitWithQuotaRetry(
       );
     }
     try {
-      await area.set({ [RENEWAL_HISTORY_STORAGE_KEY]: history });
+      await platformStorage.set(RENEWAL_HISTORY_STORAGE_KEY, history);
     } catch (retryError) {
       throw new RenewalHistorySaveError(
         'quota_exceeded',
@@ -375,10 +370,7 @@ export async function recordCopiedRenewalEmail(
   input: RecordCopiedRenewalEmailInput,
 ): Promise<RecordCopiedRenewalEmailResult> {
   return withRenewalHistoryLock(async () => {
-    const area = storageArea();
-    if (!area)
-      throw new RenewalHistorySaveError('storage_unavailable', 'Local storage is unavailable.');
-    const history = migrateRenewalHistory(await readRaw(area));
+    const history = migrateRenewalHistory(await readRaw());
     const draftId = normalizeId(input.draftId);
     const copiedAt = normalizeDate(input.copiedAt ?? new Date().toISOString());
     const subject = normalizeEmailText(input.subject, MAX_SUBJECT_LENGTH, false);
@@ -447,7 +439,7 @@ export async function recordCopiedRenewalEmail(
     };
     cycle.sentEmails.push(email);
     cycle.updatedAt = copiedAt;
-    await commitWithQuotaRetry(area, history);
+    await commitWithQuotaRetry(history);
     return { history, accountId: account.id, cycleId: cycle.id, email, duplicate: false };
   });
 }
@@ -457,10 +449,7 @@ export async function archiveRenewalCycle(
   expectedCycleId: string,
 ): Promise<RenewalHistoryStore> {
   return withRenewalHistoryLock(async () => {
-    const area = storageArea();
-    if (!area)
-      throw new RenewalHistorySaveError('storage_unavailable', 'Local storage is unavailable.');
-    const history = migrateRenewalHistory(await readRaw(area));
+    const history = migrateRenewalHistory(await readRaw());
     const account = history.accounts.find((candidate) => candidate.id === normalizeId(accountId));
     if (!account || account.activeCycleId !== normalizeId(expectedCycleId)) return history;
     const cycle = account.cycles.find((candidate) => candidate.id === account.activeCycleId);
@@ -470,31 +459,25 @@ export async function archiveRenewalCycle(
     cycle.updatedAt = archivedAt;
     account.updatedAt = archivedAt;
     delete account.activeCycleId;
-    await commitWithQuotaRetry(area, history);
+    await commitWithQuotaRetry(history);
     return history;
   });
 }
 
 export async function deleteRenewalAccount(accountId: string): Promise<RenewalHistoryStore> {
   return withRenewalHistoryLock(async () => {
-    const area = storageArea();
-    if (!area)
-      throw new RenewalHistorySaveError('storage_unavailable', 'Local storage is unavailable.');
-    const history = migrateRenewalHistory(await readRaw(area));
+    const history = migrateRenewalHistory(await readRaw());
     const next = history.accounts.filter((account) => account.id !== normalizeId(accountId));
     if (next.length === history.accounts.length) return history;
     history.accounts = next;
-    await commitWithQuotaRetry(area, history);
+    await commitWithQuotaRetry(history);
     return history;
   });
 }
 
 export async function clearRenewalHistory(): Promise<RenewalHistoryStore> {
   return withRenewalHistoryLock(async () => {
-    const area = storageArea();
-    if (!area)
-      throw new RenewalHistorySaveError('storage_unavailable', 'Local storage is unavailable.');
-    await area.remove(RENEWAL_HISTORY_STORAGE_KEY);
+    await platformStorage.remove(RENEWAL_HISTORY_STORAGE_KEY);
     return emptyHistory();
   });
 }
@@ -523,18 +506,11 @@ export function searchRenewalAccounts(
 export function subscribeRenewalHistory(
   callback: (history: RenewalHistoryStore) => void,
 ): () => void {
-  if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) return () => {};
-  const listener = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    areaName: string,
-  ): void => {
-    if (areaName !== 'local' || !(RENEWAL_HISTORY_STORAGE_KEY in changes)) return;
+  return platformStorage.subscribe(RENEWAL_HISTORY_STORAGE_KEY, (value) => {
     try {
-      callback(migrateRenewalHistory(changes[RENEWAL_HISTORY_STORAGE_KEY]?.newValue));
+      callback(migrateRenewalHistory(value));
     } catch (error) {
       log.error('ignored unsupported renewal history change', error);
     }
-  };
-  chrome.storage.onChanged.addListener(listener);
-  return () => chrome.storage.onChanged.removeListener(listener);
+  });
 }

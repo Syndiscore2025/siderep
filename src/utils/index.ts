@@ -4,3 +4,4 @@ export { ok, err, toError } from './result';
 export type { Result } from './result';
 export { createId } from './id';
 export { logger } from './logger';
+export { isExtensionContext } from './platform';

@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SETTINGS } from '@/types';
 
-import { loadSettings, resetSettings, saveSettings, updateSettings } from './settingsService';
+import {
+  loadSettings,
+  resetSettings,
+  saveSettings,
+  subscribeSettings,
+  updateSettings,
+} from './settingsService';
 
 describe('settingsService', () => {
   it('loads defaults when nothing is stored', async () => {
@@ -75,5 +81,16 @@ describe('settingsService', () => {
   it('sanitizes invalid stored values back to defaults on load', async () => {
     await chrome.storage.local.set({ 'siderep.settings': { ai: { temperature: 999 } } });
     await expect(loadSettings()).resolves.toEqual(DEFAULT_SETTINGS);
+  });
+
+  it('delegates exact-key changes to settings subscribers', async () => {
+    const callback = vi.fn();
+    const unsubscribe = subscribeSettings(callback);
+    await chrome.storage.local.set({ unrelated: true });
+    expect(callback).not.toHaveBeenCalled();
+
+    await saveSettings({ ...DEFAULT_SETTINGS, theme: 'light' });
+    expect(callback).toHaveBeenCalledWith(expect.objectContaining({ theme: 'light' }));
+    unsubscribe();
   });
 });

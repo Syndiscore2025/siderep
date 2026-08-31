@@ -1,15 +1,16 @@
 import type { Settings } from '@/types';
+import { isExtensionContext } from '@/utils/platform';
 import { toError } from '@/utils';
 
 import { createAIService } from '@/services/ai/openAIChatService';
 import { createEmailService } from '@/services/email/gmailService';
 import { createExtractionService } from '@/services/extraction/customerExtractionService';
+import { platformStorage } from '@/services/storage/platformStorage';
 
 /**
- * Connectivity diagnostics — live, in-extension checks that each integration
- * endpoint actually connects with the user's real credentials and `chrome.*`
- * context. These run on demand from Settings; nothing here persists customer
- * data. Each check returns a status the UI renders, never throwing.
+ * Connectivity diagnostics run on demand from Settings. Adapter storage and
+ * OpenAI work on both platforms; Chrome-only integrations are skipped on web.
+ * Nothing here persists customer data and every check returns a UI-safe result.
  */
 
 export type CheckStatus = 'pass' | 'fail' | 'skip';
@@ -26,16 +27,12 @@ const GMAIL_PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profil
 /** Storage round-trip: proves config persistence works in this context. */
 export async function checkStorage(): Promise<CheckResult> {
   const base = { id: 'storage', label: 'Local storage' };
-  const area = typeof chrome !== 'undefined' && chrome.storage?.local ? chrome.storage.local : null;
-  if (!area) {
-    return { ...base, status: 'skip', detail: 'chrome.storage unavailable in this context.' };
-  }
   const probeKey = 'siderep.diagnostics.probe';
   try {
-    await area.set({ [probeKey]: Date.now() });
-    const read = await area.get(probeKey);
-    await area.remove(probeKey);
-    return read?.[probeKey] != null
+    await platformStorage.set(probeKey, Date.now());
+    const read = await platformStorage.get(probeKey);
+    await platformStorage.remove(probeKey);
+    return read != null
       ? { ...base, status: 'pass', detail: 'Read/write round-trip succeeded.' }
       : { ...base, status: 'fail', detail: 'Wrote a value but could not read it back.' };
   } catch (error) {
@@ -59,6 +56,13 @@ export async function checkAssistantOpenAI(settings: Settings): Promise<CheckRes
 /** Gmail: OAuth token + an authenticated profile GET (skipped unless needed). */
 export async function checkGmail(settings: Settings): Promise<CheckResult> {
   const base = { id: 'gmail', label: 'Gmail API' };
+  if (!isExtensionContext()) {
+    return {
+      ...base,
+      status: 'skip',
+      detail: 'Extension-only check. Web uses Gmail compose and does not request Google access.',
+    };
+  }
   if (settings.email.deliveryMode !== 'gmail_api') {
     return {
       ...base,
@@ -94,6 +98,13 @@ export async function checkGmail(settings: Settings): Promise<CheckResult> {
 /** Salesforce: attempts to read the active tab via the content script. */
 export async function checkSalesforce(): Promise<CheckResult> {
   const base = { id: 'salesforce', label: 'Salesforce extraction' };
+  if (!isExtensionContext()) {
+    return {
+      ...base,
+      status: 'skip',
+      detail: 'Extension-only check. Paste customer fields manually in the web app.',
+    };
+  }
   try {
     const result = await createExtractionService().extractActiveCustomer();
     if (!result.ok) return { ...base, status: 'fail', detail: result.error.message };

@@ -146,6 +146,7 @@ export function parseSalesforceRecord(doc: Document, sourceUrl?: string): Extrac
   const displayName = readDisplayName(doc) || trimmed[0]?.value || 'Salesforce Record';
 
   return {
+    source: 'salesforce',
     displayName,
     recordType: readRecordType(doc),
     sourceUrl,

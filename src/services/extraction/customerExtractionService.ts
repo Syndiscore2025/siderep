@@ -31,6 +31,7 @@ async function activeTabIsSalesforce(): Promise<boolean> {
 }
 
 export const SAMPLE_CUSTOMER: ExtractedCustomer = {
+  source: 'sample',
   displayName: 'Acme Robotics (Sample)',
   recordType: 'Account',
   extractedAt: new Date(0).toISOString(),

@@ -1,3 +1,5 @@
+import type { EmailDeliveryMode } from './email';
+
 /**
  * Bulk report data model.
  *
@@ -69,15 +71,19 @@ export interface FilterResult {
  */
 export interface BulkRunRecord {
   id: string;
+  /** Missing on legacy records, which are treated as sent. */
+  action?: 'sent' | 'prepared';
+  /** Transport selected for this run; absent on legacy records. */
+  deliveryMode?: EmailDeliveryMode;
   /** ISO timestamp of when the run completed. */
   ranAt: string;
   /** Rows matched after filtering (candidate recipients). */
   matched: number;
-  /** Recipients the user approved and attempted to send to. */
+  /** Recipients the user approved and acted on. */
   attempted: number;
-  /** Sends that succeeded. */
+  /** Actions that completed successfully. */
   succeeded: number;
-  /** Sends that failed. */
+  /** Actions that failed. */
   failed: number;
   /** Rows skipped by the status filter. */
   skipped: number;
