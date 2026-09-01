@@ -96,335 +96,352 @@ export function SettingsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex-1 space-y-3 overflow-y-auto p-3">
-        <Card title="Rep Profile">
-          <div className="space-y-3">
-            <Field label="Name">
-              <Input
-                value={form.repProfile.name}
-                onChange={(e) => patch('repProfile', { name: e.target.value })}
-                autoComplete="name"
-              />
-            </Field>
-            <Field label="Company">
-              <Input
-                value={form.repProfile.company}
-                onChange={(e) => patch('repProfile', { company: e.target.value })}
-                autoComplete="organization"
-              />
-            </Field>
-            <Field label="Phone">
-              <Input
-                type="tel"
-                value={form.repProfile.phone}
-                onChange={(e) => patch('repProfile', { phone: e.target.value })}
-                autoComplete="tel"
-              />
-            </Field>
-            <Field label="Email">
-              <Input
-                type="email"
-                value={form.repProfile.email}
-                onChange={(e) => patch('repProfile', { email: e.target.value })}
-                autoComplete="email"
-              />
-            </Field>
-          </div>
-        </Card>
-
-        <Card
-          title="OpenAI Renewal"
-          icon={<SparklesIcon className="size-3.5" />}
-          action={
-            renewalConfigured ? (
-              <Badge tone="success">
-                <CheckIcon className="mr-0.5 size-3" />
-                Configured
-              </Badge>
-            ) : (
-              <Badge tone="warning">Not configured</Badge>
-            )
-          }
-        >
-          <div className="space-y-3">
-            <Field label="API key">
-              <div className="flex gap-2">
-                <Input
-                  type={showRenewalApiKey ? 'text' : 'password'}
-                  value={form.renewalAI.apiKey}
-                  onChange={(e) => patch('renewalAI', { apiKey: e.target.value })}
-                  autoComplete="off"
-                />
-                <Button
-                  size="sm"
-                  className="h-9"
-                  onClick={() => setShowRenewalApiKey((visible) => !visible)}
-                >
-                  {showRenewalApiKey ? 'Hide' : 'Show'}
-                </Button>
-              </div>
-            </Field>
-            <Field label="Model" hint="Enter the model configured for your OpenAI account.">
-              <Input
-                value={form.renewalAI.model}
-                onChange={(e) => patch('renewalAI', { model: e.target.value })}
-                placeholder="e.g. gpt-4o-mini"
-              />
-            </Field>
-            <p className="text-[11px] text-content-muted">
-              Stored in {extension ? 'chrome.storage.local' : 'localStorage'} on this device only.
-              Your API key is never logged.
+      <div className="flex-1 overflow-y-auto p-3 md:p-5 lg:p-6">
+        <div className="mx-auto w-full max-w-6xl">
+          <div className="mb-4">
+            <h1 className="text-lg font-semibold tracking-tight text-content-primary">Settings</h1>
+            <p className="mt-0.5 text-xs text-content-muted">
+              Configure your profile, AI connections, prompts, and delivery preferences.
             </p>
           </div>
-        </Card>
-
-        <Card
-          title="OpenAI Assistant"
-          icon={<SparklesIcon className="size-3.5" />}
-          action={
-            isAssistantAIConfigured(form) ? (
-              <Badge tone="success">
-                <CheckIcon className="mr-0.5 size-3" />
-                Configured
-              </Badge>
-            ) : (
-              <Badge tone="warning">Not configured</Badge>
-            )
-          }
-        >
-          <div className="space-y-3">
-            <Field label="API key" hint="Stored locally on this device only.">
-              <div className="flex gap-2">
-                <Input
-                  type={showAssistantApiKey ? 'text' : 'password'}
-                  value={form.assistantAI.apiKey}
-                  onChange={(e) => {
-                    patch('assistantAI', { apiKey: e.target.value });
-                    setTest({ status: 'idle' });
-                  }}
-                  autoComplete="off"
-                />
-                <Button
-                  size="sm"
-                  className="h-9"
-                  onClick={() => setShowAssistantApiKey((visible) => !visible)}
-                >
-                  {showAssistantApiKey ? 'Hide' : 'Show'}
-                </Button>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
+            <Card title="Rep Profile">
+              <div className="space-y-3">
+                <Field label="Name">
+                  <Input
+                    value={form.repProfile.name}
+                    onChange={(e) => patch('repProfile', { name: e.target.value })}
+                    autoComplete="name"
+                  />
+                </Field>
+                <Field label="Company">
+                  <Input
+                    value={form.repProfile.company}
+                    onChange={(e) => patch('repProfile', { company: e.target.value })}
+                    autoComplete="organization"
+                  />
+                </Field>
+                <Field label="Phone">
+                  <Input
+                    type="tel"
+                    value={form.repProfile.phone}
+                    onChange={(e) => patch('repProfile', { phone: e.target.value })}
+                    autoComplete="tel"
+                  />
+                </Field>
+                <Field label="Email">
+                  <Input
+                    type="email"
+                    value={form.repProfile.email}
+                    onChange={(e) => patch('repProfile', { email: e.target.value })}
+                    autoComplete="email"
+                  />
+                </Field>
               </div>
-            </Field>
-            <Field label="Model" hint="Separate from the Renewal model above.">
-              <Input
-                list="siderep-assistant-models"
-                value={form.assistantAI.model}
-                onChange={(e) => {
-                  patch('assistantAI', { model: e.target.value });
-                  setTest({ status: 'idle' });
-                }}
-              />
-              <datalist id="siderep-assistant-models">
-                {SUGGESTED_MODELS.map((model) => (
-                  <option key={model} value={model} />
-                ))}
-              </datalist>
-            </Field>
+            </Card>
 
-            <div className="flex items-center gap-2 pt-0.5">
-              <Button
-                size="sm"
-                onClick={() => void runTest()}
-                loading={test.status === 'testing'}
-                disabled={!isAssistantAIConfigured(form)}
-              >
-                Test connection
-              </Button>
-              {test.status === 'ok' && (
-                <span className="flex animate-fade-in items-center gap-1 text-[11px] font-medium text-success">
-                  <CheckIcon className="size-3.5" />
-                  Connection succeeded
-                </span>
-              )}
-              {test.status === 'error' && (
-                <span className="animate-fade-in text-[11px] text-danger">{test.message}</span>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        <Card title="AI Behavior">
-          <div className="space-y-3">
-            <Field label={`Temperature — ${form.ai.temperature.toFixed(1)}`}>
-              <input
-                type="range"
-                min={0}
-                max={2}
-                step={0.1}
-                value={form.ai.temperature}
-                onChange={(e) => patch('ai', { temperature: Number(e.target.value) })}
-                className="w-full accent-(--color-accent)"
-              />
-            </Field>
-            <Field label="Max response tokens">
-              <Input
-                type="number"
-                min={1}
-                max={32000}
-                value={form.ai.maxTokens}
-                onChange={(e) => patch('ai', { maxTokens: Number(e.target.value) || 1 })}
-              />
-            </Field>
-          </div>
-        </Card>
-
-        <Card title="Prompts">
-          <div className="space-y-3">
-            <Field label="Default tone">
-              <Input
-                value={form.prompts.defaultTone}
-                onChange={(e) => patch('prompts', { defaultTone: e.target.value })}
-                placeholder="professional"
-              />
-            </Field>
-            <Field label="Email signature" hint="Appended to generated emails.">
-              <Textarea
-                rows={3}
-                value={form.prompts.signature}
-                onChange={(e) => patch('prompts', { signature: e.target.value })}
-                placeholder={'Best regards,\nAlex Rivera\nAcme Inc.'}
-              />
-            </Field>
-            <Field label="Custom instructions" hint="Extra guidance added to every conversation.">
-              <Textarea
-                rows={3}
-                value={form.prompts.customInstructions}
-                onChange={(e) => patch('prompts', { customInstructions: e.target.value })}
-                placeholder="Always keep emails under 150 words…"
-              />
-            </Field>
-          </div>
-        </Card>
-
-        <Card title="Email">
-          <div className="space-y-3">
-            <Field
-              label="Delivery mode"
-              hint="How approved emails are sent. Switch if your org blocks one method."
+            <Card
+              title="OpenAI Renewal"
+              icon={<SparklesIcon className="size-3.5" />}
+              action={
+                renewalConfigured ? (
+                  <Badge tone="success">
+                    <CheckIcon className="mr-0.5 size-3" />
+                    Configured
+                  </Badge>
+                ) : (
+                  <Badge tone="warning">Not configured</Badge>
+                )
+              }
             >
-              <Select
-                value={form.email.deliveryMode}
-                onChange={(e) =>
-                  patch('email', { deliveryMode: e.target.value as EmailDeliveryMode })
-                }
-              >
-                {EMAIL_DELIVERY_MODES.filter((mode) => extension || mode !== 'gmail_api').map(
-                  (mode) => (
-                    <option key={mode} value={mode}>
-                      {DELIVERY_MODE_LABEL[mode]}
-                    </option>
-                  ),
-                )}
-              </Select>
-            </Field>
-            <Field
-              label="Template subject"
-              hint="Use {{placeholders}} — the AI fills them from approved fields."
-            >
-              <Input
-                value={form.email.template.subject}
-                onChange={(e) =>
-                  patch('email', { template: { ...form.email.template, subject: e.target.value } })
-                }
-                placeholder="Renewal for {{accountName}}"
-              />
-            </Field>
-            <Field label="Template body">
-              <Textarea
-                rows={5}
-                value={form.email.template.body}
-                onChange={(e) =>
-                  patch('email', { template: { ...form.email.template, body: e.target.value } })
-                }
-                placeholder={'Hi {{primaryContact}},\n\nI wanted to reach out about…'}
-              />
-            </Field>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium text-content-primary">Remember sent emails</p>
+              <div className="space-y-3">
+                <Field label="API key">
+                  <div className="flex gap-2">
+                    <Input
+                      type={showRenewalApiKey ? 'text' : 'password'}
+                      value={form.renewalAI.apiKey}
+                      onChange={(e) => patch('renewalAI', { apiKey: e.target.value })}
+                      autoComplete="off"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-9"
+                      onClick={() => setShowRenewalApiKey((visible) => !visible)}
+                    >
+                      {showRenewalApiKey ? 'Hide' : 'Show'}
+                    </Button>
+                  </div>
+                </Field>
+                <Field label="Model" hint="Enter the model configured for your OpenAI account.">
+                  <Input
+                    value={form.renewalAI.model}
+                    onChange={(e) => patch('renewalAI', { model: e.target.value })}
+                    placeholder="e.g. gpt-4o-mini"
+                  />
+                </Field>
                 <p className="text-[11px] text-content-muted">
-                  Stores the emails you send (your artifact) — never customer data.
+                  Stored in {extension ? 'chrome.storage.local' : 'localStorage'} on this device
+                  only. Your API key is never logged.
                 </p>
               </div>
-              <Toggle
-                checked={form.email.rememberSent}
-                onChange={(checked) => patch('email', { rememberSent: checked })}
-                aria-label="Remember sent emails"
-              />
-            </div>
-          </div>
-        </Card>
+            </Card>
 
-        {extension && (
-          <Card title="Google Account">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-content-muted">
-                {form.google.connectedEmail ??
-                  'Not connected. Required only for the Gmail API delivery mode.'}
-              </p>
-              <Button
-                size="sm"
-                onClick={() => void connectGoogle()}
-                loading={google.status === 'testing'}
-              >
-                {form.google.connectedEmail ? 'Reconnect' : 'Connect Google'}
-              </Button>
-            </div>
-            {google.status === 'error' && (
-              <p className="mt-2 animate-fade-in text-[11px] text-danger">{google.message}</p>
-            )}
-          </Card>
-        )}
-
-        <Card title="Appearance">
-          <Field label="Theme">
-            <Select
-              value={form.theme}
-              onChange={(e) => setForm((prev) => ({ ...prev, theme: e.target.value as Theme }))}
+            <Card
+              title="OpenAI Assistant"
+              icon={<SparklesIcon className="size-3.5" />}
+              action={
+                isAssistantAIConfigured(form) ? (
+                  <Badge tone="success">
+                    <CheckIcon className="mr-0.5 size-3" />
+                    Configured
+                  </Badge>
+                ) : (
+                  <Badge tone="warning">Not configured</Badge>
+                )
+              }
             >
-              {THEMES.map((theme) => (
-                <option key={theme} value={theme}>
-                  {theme[0].toUpperCase() + theme.slice(1)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </Card>
+              <div className="space-y-3">
+                <Field label="API key" hint="Stored locally on this device only.">
+                  <div className="flex gap-2">
+                    <Input
+                      type={showAssistantApiKey ? 'text' : 'password'}
+                      value={form.assistantAI.apiKey}
+                      onChange={(e) => {
+                        patch('assistantAI', { apiKey: e.target.value });
+                        setTest({ status: 'idle' });
+                      }}
+                      autoComplete="off"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-9"
+                      onClick={() => setShowAssistantApiKey((visible) => !visible)}
+                    >
+                      {showAssistantApiKey ? 'Hide' : 'Show'}
+                    </Button>
+                  </div>
+                </Field>
+                <Field label="Model" hint="Separate from the Renewal model above.">
+                  <Input
+                    list="siderep-assistant-models"
+                    value={form.assistantAI.model}
+                    onChange={(e) => {
+                      patch('assistantAI', { model: e.target.value });
+                      setTest({ status: 'idle' });
+                    }}
+                  />
+                  <datalist id="siderep-assistant-models">
+                    {SUGGESTED_MODELS.map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
+                </Field>
 
-        <Diagnostics />
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Button
+                    size="sm"
+                    onClick={() => void runTest()}
+                    loading={test.status === 'testing'}
+                    disabled={!isAssistantAIConfigured(form)}
+                  >
+                    Test connection
+                  </Button>
+                  {test.status === 'ok' && (
+                    <span className="flex animate-fade-in items-center gap-1 text-[11px] font-medium text-success">
+                      <CheckIcon className="size-3.5" />
+                      Connection succeeded
+                    </span>
+                  )}
+                  {test.status === 'error' && (
+                    <span className="animate-fade-in text-[11px] text-danger">{test.message}</span>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            <Card title="AI Behavior">
+              <div className="space-y-3">
+                <Field label={`Temperature — ${form.ai.temperature.toFixed(1)}`}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={form.ai.temperature}
+                    onChange={(e) => patch('ai', { temperature: Number(e.target.value) })}
+                    className="w-full accent-(--color-accent)"
+                  />
+                </Field>
+                <Field label="Max response tokens">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={32000}
+                    value={form.ai.maxTokens}
+                    onChange={(e) => patch('ai', { maxTokens: Number(e.target.value) || 1 })}
+                  />
+                </Field>
+              </div>
+            </Card>
+
+            <Card title="Prompts">
+              <div className="space-y-3">
+                <Field label="Default tone">
+                  <Input
+                    value={form.prompts.defaultTone}
+                    onChange={(e) => patch('prompts', { defaultTone: e.target.value })}
+                    placeholder="professional"
+                  />
+                </Field>
+                <Field label="Email signature" hint="Appended to generated emails.">
+                  <Textarea
+                    rows={3}
+                    value={form.prompts.signature}
+                    onChange={(e) => patch('prompts', { signature: e.target.value })}
+                    placeholder={'Best regards,\nAlex Rivera\nAcme Inc.'}
+                  />
+                </Field>
+                <Field
+                  label="Custom instructions"
+                  hint="Extra guidance added to every conversation."
+                >
+                  <Textarea
+                    rows={3}
+                    value={form.prompts.customInstructions}
+                    onChange={(e) => patch('prompts', { customInstructions: e.target.value })}
+                    placeholder="Always keep emails under 150 words…"
+                  />
+                </Field>
+              </div>
+            </Card>
+
+            <Card title="Email">
+              <div className="space-y-3">
+                <Field
+                  label="Delivery mode"
+                  hint="How approved emails are sent. Switch if your org blocks one method."
+                >
+                  <Select
+                    value={form.email.deliveryMode}
+                    onChange={(e) =>
+                      patch('email', { deliveryMode: e.target.value as EmailDeliveryMode })
+                    }
+                  >
+                    {EMAIL_DELIVERY_MODES.filter((mode) => extension || mode !== 'gmail_api').map(
+                      (mode) => (
+                        <option key={mode} value={mode}>
+                          {DELIVERY_MODE_LABEL[mode]}
+                        </option>
+                      ),
+                    )}
+                  </Select>
+                </Field>
+                <Field
+                  label="Template subject"
+                  hint="Use {{placeholders}} — the AI fills them from approved fields."
+                >
+                  <Input
+                    value={form.email.template.subject}
+                    onChange={(e) =>
+                      patch('email', {
+                        template: { ...form.email.template, subject: e.target.value },
+                      })
+                    }
+                    placeholder="Renewal for {{accountName}}"
+                  />
+                </Field>
+                <Field label="Template body">
+                  <Textarea
+                    rows={5}
+                    value={form.email.template.body}
+                    onChange={(e) =>
+                      patch('email', { template: { ...form.email.template, body: e.target.value } })
+                    }
+                    placeholder={'Hi {{primaryContact}},\n\nI wanted to reach out about…'}
+                  />
+                </Field>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-content-primary">Remember sent emails</p>
+                    <p className="text-[11px] text-content-muted">
+                      Stores the emails you send (your artifact) — never customer data.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={form.email.rememberSent}
+                    onChange={(checked) => patch('email', { rememberSent: checked })}
+                    aria-label="Remember sent emails"
+                  />
+                </div>
+              </div>
+            </Card>
+
+            {extension && (
+              <Card title="Google Account">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-content-muted">
+                    {form.google.connectedEmail ??
+                      'Not connected. Required only for the Gmail API delivery mode.'}
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => void connectGoogle()}
+                    loading={google.status === 'testing'}
+                  >
+                    {form.google.connectedEmail ? 'Reconnect' : 'Connect Google'}
+                  </Button>
+                </div>
+                {google.status === 'error' && (
+                  <p className="mt-2 animate-fade-in text-[11px] text-danger">{google.message}</p>
+                )}
+              </Card>
+            )}
+
+            <Card title="Appearance">
+              <Field label="Theme">
+                <Select
+                  value={form.theme}
+                  onChange={(e) => setForm((prev) => ({ ...prev, theme: e.target.value as Theme }))}
+                >
+                  {THEMES.map((theme) => (
+                    <option key={theme} value={theme}>
+                      {theme[0].toUpperCase() + theme.slice(1)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </Card>
+
+            <Diagnostics />
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-edge bg-surface-1/80 px-3 py-2.5 backdrop-blur">
-        <Button
-          variant="ghost"
-          size="sm"
-          loading={resetSettings.isPending}
-          onClick={() => resetSettings.mutate()}
-        >
-          Reset to defaults
-        </Button>
-        <div className="flex items-center gap-2">
-          {saveSettings.isSuccess && !saveSettings.isPending && (
-            <span className="flex animate-fade-in items-center gap-1 text-[11px] font-medium text-success">
-              <CheckIcon className="size-3.5" />
-              Saved
-            </span>
-          )}
+      <div className="shrink-0 border-t border-edge bg-surface-1/85 px-3 py-2.5 backdrop-blur-xl md:px-6 md:py-3">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2">
           <Button
-            variant="primary"
-            loading={saveSettings.isPending}
-            onClick={() => saveSettings.mutate(form)}
+            variant="ghost"
+            size="sm"
+            loading={resetSettings.isPending}
+            onClick={() => resetSettings.mutate()}
           >
-            Save Settings
+            Reset to defaults
           </Button>
+          <div className="flex items-center gap-2">
+            {saveSettings.isSuccess && !saveSettings.isPending && (
+              <span className="flex animate-fade-in items-center gap-1 text-[11px] font-medium text-success">
+                <CheckIcon className="size-3.5" />
+                Saved
+              </span>
+            )}
+            <Button
+              variant="primary"
+              loading={saveSettings.isPending}
+              onClick={() => saveSettings.mutate(form)}
+            >
+              Save Settings
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* The web Vite build is rooted in web/, so Tailwind's automatic source
+   detection cannot see the shared React application one directory above.
+   Keep the shared source tree explicit for both web and extension builds. */
+@source '../';
+
 /*
  * SideRep design tokens (Tailwind 4 CSS-first theme).
  *
