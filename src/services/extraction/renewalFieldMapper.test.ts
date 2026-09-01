@@ -48,6 +48,7 @@ describe('mapRenewalFields', () => {
         ['Some Merchant Name Note', 'Must not match'],
       ]),
       {
+        ...EMPTY_RENEWAL_INPUT,
         merchantName: 'Manual merchant',
         businessName: '',
         accountName: '',
@@ -80,7 +81,8 @@ describe('mapRenewalFields', () => {
     expect(result.input.additionalSameDayLender).toBe('Second Capital');
     expect(result.detectedAdditionalLender).toBe(true);
     expect(result.warnings).toEqual([]);
-    expect(JSON.stringify(result.input)).not.toMatch(/fundingDate/i);
+    expect(result.input).not.toHaveProperty('latestFundingDate');
+    expect(result.input).not.toHaveProperty('additionalFundingDate');
   });
 
   it('omits and warns about a secondary lender whose latest date does not tie', () => {
@@ -96,13 +98,13 @@ describe('mapRenewalFields', () => {
     expect(result.warnings.join(' ')).toMatch(/review it manually/i);
   });
 
-  it('warns for incomplete secondary data and retains no funding dates', () => {
+  it('warns for incomplete secondary data and retains no same-day comparison dates', () => {
     const result = mapRenewalFields(customer([['Second Funding Date', '2026-06-01']]));
     expect(result.warnings.join(' ')).toMatch(/without an explicitly numbered second lender/i);
-    expect(Object.keys(result.input)).not.toContain('fundingDate');
+    expect(result.input.originalFundingDate).toBe('');
   });
 
-  it('keeps safe websites while Salesforce cannot overwrite manual balance or percentage', () => {
+  it('keeps safe websites and prefers manually reviewed balance and percentage values', () => {
     const result = mapRenewalFields(
       customer(
         [
@@ -118,6 +120,47 @@ describe('mapRenewalFields', () => {
     expect(result.input.website).toBe('https://merchant.example/path');
     expect(result.input.currentBalance).toBe('$8,500');
     expect(result.input.percentagePaid).toBe('64%');
+  });
+
+  it('maps complete merchant and funding context from exact Salesforce aliases', () => {
+    const result = mapRenewalFields(
+      customer([
+        ['Contact First Name', 'Avery'],
+        ['Contact Last Name', 'Stone'],
+        ['Billing City', 'Denver'],
+        ['Billing State', 'CO'],
+        ['Industry', 'Commercial HVAC'],
+        ['Current Balance', '$25,000'],
+        ['Current % Paid In', '71%'],
+        ['Original Funding Amount', '$100,000'],
+        ['Original Funding Date', '8/15/2025'],
+        ['Product Type', 'MCA'],
+        ['Renewal Eligibility Date', '2026-09-15'],
+        ['Existing Positions', '1'],
+        ['Possible LOC', '$50,000'],
+        ['Possible Term Loan', '36 months'],
+        ['Special Lender Incentives', 'Reduced origination fee'],
+        ['Existing Outstanding Offer', '$75,000 renewal offer'],
+      ]),
+    );
+
+    expect(result.input).toMatchObject({
+      merchantName: 'Avery Stone',
+      city: 'Denver',
+      state: 'CO',
+      industry: 'Commercial HVAC',
+      currentBalance: '$25,000',
+      percentagePaid: '71%',
+      originalFundingAmount: '$100,000',
+      originalFundingDate: '2025-08-15',
+      productType: 'MCA',
+      renewalEligibilityDate: '2026-09-15',
+      existingPositions: '1',
+      possibleLineOfCredit: '$50,000',
+      possibleTermLoan: '36 months',
+      specialLenderIncentives: 'Reduced origination fee',
+      existingOutstandingOffer: '$75,000 renewal offer',
+    });
   });
 
   it('maps a Salesforce business address for research disambiguation', () => {

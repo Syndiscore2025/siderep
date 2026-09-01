@@ -7,7 +7,11 @@ export { EMPTY_RENEWAL_INPUT } from './renewal';
 export type {
   RenewalEligibility,
   RenewalOutreachType,
+  RenewalOutreachObjective,
+  RenewalResearchConfidence,
   RenewalInput,
+  RenewalBusinessResearch,
+  RenewalMerchantContext,
   RenewalRepProfile,
   RenewalSource,
   RenewalDraft,

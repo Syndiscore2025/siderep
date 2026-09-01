@@ -55,6 +55,7 @@ export type {
   RecordCopiedRenewalEmailInput,
   RecordCopiedRenewalEmailResult,
 } from './renewal/renewalHistoryService';
+export { buildRenewalMerchantContext, determineOutreachObjective } from './renewal/merchantContext';
 
 export {
   MessagingExtractionService,

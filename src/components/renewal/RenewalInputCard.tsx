@@ -29,10 +29,22 @@ const FIELDS: Array<{
     placeholder: 'Street, city, state, ZIP',
     manual: true,
   },
+  { key: 'city', label: 'City', manual: true },
+  { key: 'state', label: 'State', manual: true },
   { key: 'website', label: 'Website', placeholder: 'https://…', type: 'url' },
+  { key: 'industry', label: 'Industry', manual: true },
   { key: 'currentBalance', label: 'Current balance', manual: true },
   { key: 'percentagePaid', label: 'Percentage paid', manual: true },
-  { key: 'latestLender', label: 'Latest lender' },
+  { key: 'latestLender', label: 'Current lender', manual: true },
+  { key: 'originalFundingAmount', label: 'Original funding amount', manual: true },
+  { key: 'originalFundingDate', label: 'Original funding date', manual: true },
+  { key: 'productType', label: 'Product type', manual: true },
+  { key: 'renewalEligibilityDate', label: 'Renewal eligibility date', manual: true },
+  { key: 'existingPositions', label: 'Existing positions', manual: true },
+  { key: 'possibleLineOfCredit', label: 'Possible LOC', manual: true },
+  { key: 'possibleTermLoan', label: 'Possible term loan', manual: true },
+  { key: 'specialLenderIncentives', label: 'Special lender incentives', manual: true },
+  { key: 'existingOutstandingOffer', label: 'Existing outstanding offer', manual: true },
 ];
 
 const ELIGIBILITY: Array<{ value: RenewalEligibility; label: string }> = [
@@ -57,7 +69,7 @@ export function RenewalInputCard() {
             <Field
               key={field.key}
               label={field.label}
-              hint={field.manual ? 'Manual each time; never saved.' : undefined}
+              hint={field.manual ? 'Not saved between sessions.' : undefined}
             >
               <Input
                 aria-label={field.label}

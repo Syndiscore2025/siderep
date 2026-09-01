@@ -15,11 +15,18 @@ function stripControlCharacters(value: string, replacement: string): string {
 
 /** Alias order is significant: the first populated exact label wins. */
 export const RENEWAL_FIELD_ALIASES = {
-  merchantName: ['Merchant Name'],
+  merchantName: ['Merchant Name', 'Contact Name'],
+  merchantFirstName: ['Merchant First Name', 'Contact First Name', 'First Name'],
+  merchantLastName: ['Merchant Last Name', 'Contact Last Name', 'Last Name'],
   businessName: ['Business Name', 'Legal Business Name', 'Legal Name'],
   accountName: ['Account Name'],
   dba: ['DBA', 'DBA Name', 'Doing Business As'],
   businessAddress: ['Business Address', 'Billing Address', 'Merchant Address', 'Street Address'],
+  city: ['Business City', 'Billing City', 'Merchant City', 'City'],
+  state: ['Business State', 'Billing State', 'Merchant State', 'State'],
+  industry: ['Industry', 'Business Industry', 'Industry Type', 'Business Type'],
+  currentBalance: ['Current Balance', 'Current Payoff', 'Balance'],
+  percentagePaid: ['Current % Paid In', 'Percentage Paid', 'Percent Paid', '% Paid In'],
   latestLender: ['Most Recent Lender', 'Most Recent Funder', 'Latest Lender', 'Latest Funder'],
   latestFundingDate: ['Most Recent Funding Date', 'Latest Funding Date', 'Funding Date'],
   additionalLender: [
@@ -36,6 +43,15 @@ export const RENEWAL_FIELD_ALIASES = {
     'Second Funding Date',
     'Funding Date 2',
   ],
+  originalFundingAmount: ['Original Funding Amount', 'Original Funded Amount', 'Funding Amount'],
+  originalFundingDate: ['Original Funding Date', 'Initial Funding Date', 'Origination Date'],
+  productType: ['Product Type', 'Funding Product', 'Deal Type'],
+  renewalEligibilityDate: ['Renewal Eligibility Date', 'Eligibility Date', 'Renewal Date'],
+  existingPositions: ['Existing Positions', 'Current Positions', 'Open Positions'],
+  possibleLineOfCredit: ['Possible LOC', 'Possible Line of Credit', 'Line of Credit Option'],
+  possibleTermLoan: ['Possible Term Loan', 'Term Loan Option'],
+  specialLenderIncentives: ['Special Lender Incentives', 'Lender Incentives', 'Renewal Incentives'],
+  existingOutstandingOffer: ['Existing Outstanding Offer', 'Outstanding Offer', 'Current Offer'],
   website: ['Website', 'Business Website', 'Website URL'],
 } as const;
 
@@ -90,6 +106,10 @@ function prefer(crawled: string, manual: unknown): string {
   return crawled || normalizeRenewalString(manual);
 }
 
+function preferManual(manual: unknown, crawled: string): string {
+  return normalizeRenewalString(manual) || crawled;
+}
+
 function calendarDate(value: string): string | undefined {
   const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(value);
   const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
@@ -113,10 +133,15 @@ function calendarDate(value: string): string | undefined {
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) return undefined;
   const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function normalizedDate(manual: unknown, crawled: string): string {
+  const value = preferManual(manual, crawled);
+  return calendarDate(value) ?? value;
 }
 
 export interface RenewalFieldMapping {
@@ -159,19 +184,64 @@ export function mapRenewalFields(
       normalizeRenewalUrl(manual.website) ??
       normalizeRenewalString(manual.website))
     : (normalizeRenewalUrl(manual.website) ?? normalizeRenewalString(manual.website));
+  const separateMerchantName = [
+    firstValue(fields, 'merchantFirstName'),
+    firstValue(fields, 'merchantLastName'),
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return {
     input: {
-      merchantName: prefer(firstValue(fields, 'merchantName'), manual.merchantName),
+      merchantName: prefer(
+        firstValue(fields, 'merchantName') || separateMerchantName,
+        manual.merchantName,
+      ),
       businessName: prefer(firstValue(fields, 'businessName'), manual.businessName),
       accountName: prefer(firstValue(fields, 'accountName'), manual.accountName),
       dba: prefer(firstValue(fields, 'dba'), manual.dba),
       businessAddress: prefer(firstValue(fields, 'businessAddress'), manual.businessAddress),
-      currentBalance: normalizeRenewalString(manual.currentBalance),
-      percentagePaid: normalizeRenewalString(manual.percentagePaid),
+      city: prefer(firstValue(fields, 'city'), manual.city),
+      state: prefer(firstValue(fields, 'state'), manual.state),
+      industry: prefer(firstValue(fields, 'industry'), manual.industry),
+      currentBalance: preferManual(manual.currentBalance, firstValue(fields, 'currentBalance')),
+      percentagePaid: preferManual(manual.percentagePaid, firstValue(fields, 'percentagePaid')),
       latestLender: prefer(firstValue(fields, 'latestLender'), manual.latestLender),
       additionalSameDayLender:
         additionalSameDayLender || normalizeRenewalString(manual.additionalSameDayLender),
+      originalFundingAmount: preferManual(
+        manual.originalFundingAmount,
+        firstValue(fields, 'originalFundingAmount'),
+      ),
+      originalFundingDate: normalizedDate(
+        manual.originalFundingDate,
+        firstValue(fields, 'originalFundingDate'),
+      ),
+      productType: preferManual(manual.productType, firstValue(fields, 'productType')),
+      renewalEligibilityDate: normalizedDate(
+        manual.renewalEligibilityDate,
+        firstValue(fields, 'renewalEligibilityDate'),
+      ),
+      existingPositions: preferManual(
+        manual.existingPositions,
+        firstValue(fields, 'existingPositions'),
+      ),
+      possibleLineOfCredit: preferManual(
+        manual.possibleLineOfCredit,
+        firstValue(fields, 'possibleLineOfCredit'),
+      ),
+      possibleTermLoan: preferManual(
+        manual.possibleTermLoan,
+        firstValue(fields, 'possibleTermLoan'),
+      ),
+      specialLenderIncentives: preferManual(
+        manual.specialLenderIncentives,
+        firstValue(fields, 'specialLenderIncentives'),
+      ),
+      existingOutstandingOffer: preferManual(
+        manual.existingOutstandingOffer,
+        firstValue(fields, 'existingOutstandingOffer'),
+      ),
       website,
     },
     warnings,

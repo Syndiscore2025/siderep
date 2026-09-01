@@ -1,5 +1,14 @@
-import { buildRenewalPrompt } from '@/prompts';
-import type { RenewalDraft, RenewalResearchRequest, RenewalSource, Settings } from '@/types';
+import { buildRenewalGenerationPrompt, buildRenewalResearchPrompt } from '@/prompts';
+import { buildRenewalMerchantContext } from '@/services/renewal/merchantContext';
+import type {
+  RenewalBusinessResearch,
+  RenewalDraft,
+  RenewalMerchantContext,
+  RenewalOutreachObjective,
+  RenewalResearchRequest,
+  RenewalSource,
+  Settings,
+} from '@/types';
 import { err, ok, toError } from '@/utils';
 import type { Result } from '@/utils';
 
@@ -7,13 +16,85 @@ const RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_RETRIES = 2;
 const BASE_BACKOFF_MS = 250;
 const MAX_BACKOFF_MS = 5_000;
-const MAX_OUTPUT_TOKENS = 2_000;
+const MAX_OUTPUT_TOKENS = 4_000;
 
-const DRAFT_KEYS = ['businessSummary', 'emailSubject', 'emailBody', 'smsBody'] as const;
+const RESEARCH_KEYS = [
+  'exactBusinessVerified',
+  'legalBusinessName',
+  'dba',
+  'address',
+  'city',
+  'state',
+  'website',
+  'industry',
+  'companyDescription',
+  'products',
+  'services',
+  'customerType',
+  'businessModel',
+  'locationDetails',
+  'currentBusinessActivity',
+  'workingCapitalUses',
+  'confidence',
+] as const;
+const RESEARCH_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    exactBusinessVerified: { type: 'boolean' },
+    legalBusinessName: { type: 'string', maxLength: 500 },
+    dba: { type: 'string', maxLength: 500 },
+    address: { type: 'string', maxLength: 500 },
+    city: { type: 'string', maxLength: 200 },
+    state: { type: 'string', maxLength: 100 },
+    website: { type: 'string', maxLength: 2_048 },
+    industry: { type: 'string', maxLength: 300 },
+    companyDescription: { type: 'string', maxLength: 1_200 },
+    products: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 300 } },
+    services: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 300 } },
+    customerType: { type: 'string', maxLength: 500 },
+    businessModel: { type: 'string', maxLength: 500 },
+    locationDetails: { type: 'string', maxLength: 800 },
+    currentBusinessActivity: {
+      type: 'array',
+      maxItems: 8,
+      items: { type: 'string', maxLength: 500 },
+    },
+    workingCapitalUses: {
+      type: 'array',
+      maxItems: 6,
+      items: { type: 'string', maxLength: 300 },
+    },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+  },
+  required: RESEARCH_KEYS,
+} as const;
+
+const OBJECTIVES: RenewalOutreachObjective[] = [
+  'renewal',
+  'additional_working_capital',
+  'additional_position',
+  'line_of_credit',
+  'term_loan',
+  'renewal_plus_alternative_options',
+  'existing_outstanding_offer',
+];
+const DRAFT_KEYS = [
+  'outreachObjective',
+  'businessSummary',
+  'emailSubject',
+  'emailBody',
+  'smsBody',
+] as const;
 const DRAFT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
+    outreachObjective: {
+      type: 'string',
+      enum: OBJECTIVES,
+      description: 'Must exactly match the fixed outreach objective supplied in context.',
+    },
     businessSummary: {
       type: 'string',
       maxLength: 1_200,
@@ -42,8 +123,16 @@ const DRAFT_SCHEMA = {
 } as const;
 
 type JsonRecord = Record<string, unknown>;
-type DraftContent = Omit<RenewalDraft, 'sources'>;
+type DraftContent = Omit<RenewalDraft, 'sources'> & {
+  outreachObjective: RenewalOutreachObjective;
+};
 type SourceCandidate = { url: string; title?: string };
+type ResponseStage = {
+  input: string;
+  schemaName: string;
+  schema: object;
+  webSearch: boolean;
+};
 
 export interface RenewalResearchService {
   isConfigured(): boolean;
@@ -149,11 +238,57 @@ function normalizeSources(candidates: SourceCandidate[]): RenewalSource[] {
   return [...sources.values()];
 }
 
-function parseDraftContent(value: unknown): Result<DraftContent> {
+function stringArray(value: unknown, maxItems: number, maxLength: number): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxItems &&
+    value.every((item) => typeof item === 'string' && item.length <= maxLength)
+  );
+}
+
+function parseResearchContent(value: unknown): Result<RenewalBusinessResearch> {
+  if (!isRecord(value) || Object.keys(value).length !== RESEARCH_KEYS.length) {
+    return err(new Error('OpenAI output did not match the business research schema.'));
+  }
+  const stringKeys = [
+    'legalBusinessName',
+    'dba',
+    'address',
+    'city',
+    'state',
+    'website',
+    'industry',
+    'companyDescription',
+    'customerType',
+    'businessModel',
+    'locationDetails',
+  ] as const;
+  if (
+    typeof value.exactBusinessVerified !== 'boolean' ||
+    !stringKeys.every((key) => typeof value[key] === 'string') ||
+    !stringArray(value.products, 8, 300) ||
+    !stringArray(value.services, 8, 300) ||
+    !stringArray(value.currentBusinessActivity, 8, 500) ||
+    !stringArray(value.workingCapitalUses, 6, 300) ||
+    !['high', 'medium', 'low'].includes(String(value.confidence))
+  ) {
+    return err(new Error('OpenAI output did not match the business research schema.'));
+  }
+  if (value.website && !normalizeSource({ url: value.website })) {
+    return err(new Error('OpenAI business research contained an unsafe website.'));
+  }
+  return ok(value as unknown as RenewalBusinessResearch);
+}
+
+function parseDraftContent(
+  value: unknown,
+  expectedObjective: RenewalOutreachObjective,
+): Result<DraftContent> {
   if (!isRecord(value) || Object.keys(value).length !== DRAFT_KEYS.length) {
     return err(new Error('OpenAI output did not match the renewal draft schema.'));
   }
   if (
+    typeof value.outreachObjective !== 'string' ||
     typeof value.businessSummary !== 'string' ||
     typeof value.emailSubject !== 'string' ||
     typeof value.emailBody !== 'string' ||
@@ -161,19 +296,29 @@ function parseDraftContent(value: unknown): Result<DraftContent> {
   ) {
     return err(new Error('OpenAI output did not match the renewal draft schema.'));
   }
+  if (value.outreachObjective !== expectedObjective) {
+    return err(new Error('OpenAI output did not preserve the selected outreach objective.'));
+  }
   const draft: DraftContent = {
+    outreachObjective: value.outreachObjective as RenewalOutreachObjective,
     businessSummary: value.businessSummary,
-    emailSubject: value.emailSubject,
-    emailBody: value.emailBody,
-    smsBody: value.smsBody,
+    emailSubject: value.emailSubject.trim(),
+    emailBody: value.emailBody.trim(),
+    smsBody: value.smsBody.trim(),
   };
   if (DRAFT_KEYS.some((key) => /(?:https?:\/\/|www\.)/i.test(draft[key]))) {
     return err(new Error('OpenAI output contained a URL outside API source metadata.'));
   }
+  if (!draft.emailSubject || !draft.emailBody || !draft.smsBody) {
+    return err(new Error('OpenAI returned an incomplete renewal draft.'));
+  }
   return ok(draft);
 }
 
-function collectOutput(value: unknown): Result<{ text: string; sources: RenewalSource[] }> {
+function collectOutput(
+  value: unknown,
+  requireWebSearch: boolean,
+): Result<{ text: string; sources: RenewalSource[] }> {
   if (!isRecord(value)) return err(new Error('OpenAI returned a malformed response envelope.'));
   const apiMessage = apiErrorMessage(value);
   if (apiMessage) return err(new Error(apiMessage));
@@ -224,7 +369,7 @@ function collectOutput(value: unknown): Result<{ text: string; sources: RenewalS
       }
     }
   }
-  if (!performedWebSearch) {
+  if (requireWebSearch && !performedWebSearch) {
     return err(new Error('OpenAI did not perform the required web research.'));
   }
   if (texts.length !== 1 || !texts[0]?.trim()) {
@@ -237,22 +382,93 @@ function collectOutput(value: unknown): Result<{ text: string; sources: RenewalS
   return ok({ text: texts[0], sources: normalizeSources(candidates) });
 }
 
-function parseResponse(value: unknown): Result<RenewalDraft> {
-  const output = collectOutput(value);
-  if (!output.ok) return output;
-  let parsed: unknown;
+function parseJson(text: string): Result<unknown> {
   try {
-    parsed = JSON.parse(output.value.text);
+    return ok(JSON.parse(text));
   } catch {
     return err(new Error('OpenAI output was not valid JSON.'));
   }
-  const content = parseDraftContent(parsed);
+}
+
+function parseResearchResponse(
+  value: unknown,
+): Result<{ research: RenewalBusinessResearch; sources: RenewalSource[] }> {
+  const output = collectOutput(value, true);
+  if (!output.ok) return output;
+  const parsed = parseJson(output.value.text);
+  if (!parsed.ok) return parsed;
+  const content = parseResearchContent(parsed.value);
   if (!content.ok) return content;
-  // Outreach may still use the merchant data explicitly supplied by the rep.
-  // If web search returned no verifiable source, suppress the model's factual
-  // summary rather than blocking otherwise useful email and SMS drafts.
-  const businessSummary = output.value.sources.length ? content.value.businessSummary : '';
-  return ok({ ...content.value, businessSummary, sources: output.value.sources });
+  const research = output.value.sources.length
+    ? content.value
+    : { ...content.value, exactBusinessVerified: false, confidence: 'low' as const };
+  return ok({ research, sources: output.value.sources });
+}
+
+function anchors(values: string[]): string[] {
+  const ignored = new Set(['business', 'company', 'service', 'services', 'working', 'capital']);
+  return values
+    .flatMap((value) => [value, ...value.split(/[^A-Za-z0-9]+/)])
+    .map((value) => value.trim().toLocaleLowerCase())
+    .filter((value) => value.length >= 4 && !ignored.has(value));
+}
+
+function includesAny(text: string, values: string[]): boolean {
+  const normalized = text.toLocaleLowerCase();
+  return values.some((value) => value && normalized.includes(value.toLocaleLowerCase()));
+}
+
+function validatePersonalization(
+  content: DraftContent,
+  context: RenewalMerchantContext,
+): Result<DraftContent> {
+  const identityAnchors = [
+    context.merchant.merchantFirstName,
+    context.merchant.legalBusinessName,
+    context.merchant.dba,
+    ...anchors([context.merchant.legalBusinessName, context.merchant.dba]),
+  ].filter(Boolean);
+  if (
+    identityAnchors.length &&
+    (!includesAny(`${content.emailSubject}\n${content.emailBody}`, identityAnchors) ||
+      !includesAny(content.smsBody, identityAnchors))
+  ) {
+    return err(new Error('OpenAI output was not personalized to the supplied merchant identity.'));
+  }
+  if (context.businessResearch.exactBusinessVerified) {
+    const identityTokens = new Set(
+      anchors([context.merchant.legalBusinessName, context.merchant.dba]),
+    );
+    const researchAnchors = anchors([
+      context.businessResearch.industry,
+      ...context.businessResearch.products,
+      ...context.businessResearch.services,
+      ...context.businessResearch.workingCapitalUses,
+    ]).filter((value) => !identityTokens.has(value));
+    if (researchAnchors.length && !includesAny(content.emailBody, researchAnchors)) {
+      return err(new Error('OpenAI email did not use the verified business research.'));
+    }
+  }
+  return ok(content);
+}
+
+function parseGenerationResponse(
+  value: unknown,
+  context: RenewalMerchantContext,
+  sources: RenewalSource[],
+): Result<RenewalDraft> {
+  const output = collectOutput(value, false);
+  if (!output.ok) return output;
+  const parsed = parseJson(output.value.text);
+  if (!parsed.ok) return parsed;
+  const content = parseDraftContent(parsed.value, context.outreachObjective);
+  if (!content.ok) return content;
+  const personalized = validatePersonalization(content.value, context);
+  if (!personalized.ok) return personalized;
+  const { outreachObjective: _objective, ...draft } = personalized.value;
+  const businessSummary =
+    sources.length && context.businessResearch.exactBusinessVerified ? draft.businessSummary : '';
+  return ok({ ...draft, businessSummary, sources });
 }
 
 export class OpenAIResponsesService implements RenewalResearchService {
@@ -262,30 +478,31 @@ export class OpenAIResponsesService implements RenewalResearchService {
     return Boolean(this.settings.renewalAI.apiKey.trim() && this.settings.renewalAI.model.trim());
   }
 
-  private requestBody(request: RenewalResearchRequest): string {
+  private requestBody(stage: ResponseStage): string {
     return JSON.stringify({
       model: this.settings.renewalAI.model.trim(),
-      input: buildRenewalPrompt(request),
+      input: stage.input,
       store: false,
-      tools: [{ type: 'web_search', search_context_size: 'high', external_web_access: true }],
-      tool_choice: 'required',
-      include: ['web_search_call.action.sources'],
+      ...(stage.webSearch
+        ? {
+            tools: [{ type: 'web_search', search_context_size: 'high', external_web_access: true }],
+            tool_choice: 'required',
+            include: ['web_search_call.action.sources'],
+          }
+        : {}),
       max_output_tokens: MAX_OUTPUT_TOKENS,
       text: {
         format: {
           type: 'json_schema',
-          name: 'renewal_draft',
+          name: stage.schemaName,
           strict: true,
-          schema: DRAFT_SCHEMA,
+          schema: stage.schema,
         },
       },
     });
   }
 
-  private async request(
-    request: RenewalResearchRequest,
-    signal?: AbortSignal,
-  ): Promise<Result<unknown>> {
+  private async request(stage: ResponseStage, signal?: AbortSignal): Promise<Result<unknown>> {
     if (!this.isConfigured()) {
       return err(new Error('Renewal AI is not configured. Add an API key and model in Settings.'));
     }
@@ -300,7 +517,7 @@ export class OpenAIResponsesService implements RenewalResearchService {
             Authorization: `Bearer ${this.settings.renewalAI.apiKey.trim()}`,
             'Content-Type': 'application/json',
           },
-          body: this.requestBody(request),
+          body: this.requestBody(stage),
           signal,
         });
         if (response.ok) return readUnknownJson(response);
@@ -331,8 +548,31 @@ export class OpenAIResponsesService implements RenewalResearchService {
     request: RenewalResearchRequest,
     signal?: AbortSignal,
   ): Promise<Result<RenewalDraft>> {
-    const response = await this.request(request, signal);
-    return response.ok ? parseResponse(response.value) : response;
+    const researchResponse = await this.request(
+      {
+        input: buildRenewalResearchPrompt(request),
+        schemaName: 'renewal_business_research',
+        schema: RESEARCH_SCHEMA,
+        webSearch: true,
+      },
+      signal,
+    );
+    if (!researchResponse.ok) return researchResponse;
+    const researched = parseResearchResponse(researchResponse.value);
+    if (!researched.ok) return researched;
+    const context = buildRenewalMerchantContext(request, researched.value.research);
+    const generationResponse = await this.request(
+      {
+        input: buildRenewalGenerationPrompt(context),
+        schemaName: 'renewal_personalized_outreach',
+        schema: DRAFT_SCHEMA,
+        webSearch: false,
+      },
+      signal,
+    );
+    return generationResponse.ok
+      ? parseGenerationResponse(generationResponse.value, context, researched.value.sources)
+      : generationResponse;
   }
 }
 
