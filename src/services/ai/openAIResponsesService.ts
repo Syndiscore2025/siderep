@@ -193,16 +193,16 @@ function collectOutput(value: unknown): Result<{ text: string; sources: RenewalS
 
   const texts: string[] = [];
   const candidates: SourceCandidate[] = [];
+  let performedWebSearch = false;
   for (const item of value.output) {
     if (!isRecord(item)) continue;
-    if (
-      item.type === 'web_search_call' &&
-      isRecord(item.action) &&
-      Array.isArray(item.action.sources)
-    ) {
-      for (const source of item.action.sources) {
-        const candidate = parseSource(source);
-        if (candidate) candidates.push(candidate);
+    if (item.type === 'web_search_call') {
+      performedWebSearch = true;
+      if (isRecord(item.action) && Array.isArray(item.action.sources)) {
+        for (const source of item.action.sources) {
+          const candidate = parseSource(source);
+          if (candidate) candidates.push(candidate);
+        }
       }
     }
     if (item.type !== 'message' || !Array.isArray(item.content)) continue;
@@ -223,6 +223,9 @@ function collectOutput(value: unknown): Result<{ text: string; sources: RenewalS
         }
       }
     }
+  }
+  if (!performedWebSearch) {
+    return err(new Error('OpenAI did not perform the required web research.'));
   }
   if (texts.length !== 1 || !texts[0]?.trim()) {
     return err(
@@ -264,7 +267,8 @@ export class OpenAIResponsesService implements RenewalResearchService {
       model: this.settings.renewalAI.model.trim(),
       input: buildRenewalPrompt(request),
       store: false,
-      tools: [{ type: 'web_search' }],
+      tools: [{ type: 'web_search', search_context_size: 'high', external_web_access: true }],
+      tool_choice: 'required',
       include: ['web_search_call.action.sources'],
       max_output_tokens: MAX_OUTPUT_TOKENS,
       text: {

@@ -97,7 +97,8 @@ describe('OpenAIResponsesService request contract', () => {
       model: 'gpt-5-mini',
       input: buildRenewalPrompt(REQUEST),
       store: false,
-      tools: [{ type: 'web_search' }],
+      tools: [{ type: 'web_search', search_context_size: 'high', external_web_access: true }],
+      tool_choice: 'required',
       include: ['web_search_call.action.sources'],
     });
     expect(body.max_output_tokens).toEqual(expect.any(Number));
@@ -193,6 +194,23 @@ describe('OpenAIResponsesService response parsing', () => {
     expect(!result.ok && result.error.message).toMatch(/schema/);
   });
 
+  it('rejects a response when OpenAI does not perform web search', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: JSON.stringify(DRAFT) }],
+          },
+        ],
+      }),
+    );
+    const result = await service().research(REQUEST);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/required web research/i);
+  });
+
   it('allows drafts without sources and removes only a non-empty unsupported summary', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -234,7 +252,10 @@ describe('OpenAIResponsesService response parsing', () => {
       'malformed output JSON',
       {
         status: 'completed',
-        output: [{ type: 'message', content: [{ type: 'output_text', text: 'not-json' }] }],
+        output: [
+          { type: 'web_search_call', action: { type: 'search', sources: [] } },
+          { type: 'message', content: [{ type: 'output_text', text: 'not-json' }] },
+        ],
       },
       /valid JSON/,
     ],
