@@ -12,7 +12,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { cn } from '@/utils';
 
 export function App({ platform = 'extension' }: { platform?: 'extension' | 'web' }) {
-  const [view, setView] = useState<View>('assistant');
+  const [view, setView] = useState<View>('renewal');
   const web = platform === 'web';
 
   return (

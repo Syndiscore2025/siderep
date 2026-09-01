@@ -51,12 +51,16 @@ function renderPage(research: RenewalResearchService = researchService) {
 }
 
 describe('RenewalPage', () => {
-  it('is reachable from five-tab navigation and retains state across tab switches', () => {
+  it('is the default five-tab view and retains state across tab switches', () => {
     render(<App />, { wrapper: QueryWrapper });
     const navigation = screen.getByRole('navigation', { name: 'Main' });
     expect(within(navigation).getAllByRole('button')).toHaveLength(5);
+    expect(within(navigation).getByRole('button', { name: 'Renewal' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('heading', { name: 'Renewal outreach' })).toBeInTheDocument();
 
-    fireEvent.click(within(navigation).getByRole('button', { name: 'Renewal' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Merchant name' }), {
       target: { value: 'Persistent Merchant' },
     });
@@ -113,6 +117,17 @@ describe('RenewalPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
 
     expect(await screen.findByText(DRAFT.businessSummary)).toBeInTheDocument();
+    const businessDetails = screen.getByRole('region', { name: 'Business details' });
+    const generatedOutreach = screen.getByRole('region', { name: 'Generated outreach' });
+    expect(within(businessDetails).getByRole('textbox', { name: 'Business name' })).toHaveValue(
+      'Acme',
+    );
+    expect(within(generatedOutreach).getByRole('textbox', { name: 'Email body' })).toHaveValue(
+      DRAFT.emailBody,
+    );
+    expect(within(generatedOutreach).getByRole('textbox', { name: 'SMS text' })).toHaveValue(
+      DRAFT.smsBody,
+    );
     const links = screen.getAllByRole('link');
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute('href', 'https://example.com/acme');
