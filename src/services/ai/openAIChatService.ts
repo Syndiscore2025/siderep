@@ -18,6 +18,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function usesModernCompletionParameters(model: string): boolean {
+  return /^(?:gpt-5(?:[.-]|$)|o[0-9]+(?:-|$))/i.test(model.trim());
+}
+
 interface OpenAIChoiceEnvelope {
   choices?: Array<{ delta?: { content?: string }; message?: { content?: string } }>;
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
@@ -39,11 +43,14 @@ export class OpenAIChatService implements AIService {
   }
 
   private body(request: ChatCompletionRequest, stream: boolean): string {
+    const model = this.settings.assistantAI.model.trim();
+    const completionControl = usesModernCompletionParameters(model)
+      ? { max_completion_tokens: request.maxTokens }
+      : { temperature: request.temperature, max_tokens: request.maxTokens };
     return JSON.stringify({
-      model: this.settings.assistantAI.model.trim(),
+      model,
       messages: request.messages,
-      temperature: request.temperature,
-      max_tokens: request.maxTokens,
+      ...completionControl,
       stream,
       store: false,
     });

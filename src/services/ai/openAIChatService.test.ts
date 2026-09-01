@@ -68,9 +68,29 @@ describe('OpenAIChatService', () => {
     });
     expect(JSON.parse(String(init?.body))).toMatchObject({
       model: 'gpt-4.1-mini',
+      temperature: 0.5,
+      max_tokens: 100,
       stream: false,
       store: false,
     });
+  });
+
+  it('uses GPT-5-compatible completion controls without unsupported temperature', async () => {
+    const settings: Settings = {
+      ...CONFIGURED,
+      assistantAI: { ...CONFIGURED.assistantAI, model: 'gpt-5.6' },
+    };
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({ choices: [{ message: { content: 'hello' } }] }));
+
+    const result = await new OpenAIChatService(settings).complete(REQUEST);
+
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({ model: 'gpt-5.6', max_completion_tokens: 100 });
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
   });
 
   it('maps token usage', async () => {
