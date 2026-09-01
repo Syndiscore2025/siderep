@@ -7,6 +7,7 @@ import {
   ShieldIcon,
   SparklesIcon,
   StopIcon,
+  Textarea,
 } from '@/components/ui';
 import { useRenewal } from '@/hooks/useRenewal';
 import { useSettings } from '@/hooks/useSettings';
@@ -56,7 +57,6 @@ const FUNDING_DETAIL_FIELDS: Array<{
     manual: true,
     wide: true,
   },
-  { key: 'userNotes', label: 'Rep notes / special instruction', manual: true, wide: true },
   { key: 'additionalSameDayLender', label: 'Additional same-day lender', manual: true },
 ];
 
@@ -113,6 +113,21 @@ export function RenewalInputCard() {
               </Field>
             </div>
           ))}
+        </div>
+
+        <div className="rounded-lg border border-accent/40 bg-accent/5 p-3">
+          <Field
+            label="Special Instructions / What should I mention?"
+            hint="Optional. SideRep will apply your guidance naturally alongside verified research, lender rules, and the funding scenario."
+          >
+            <Textarea
+              aria-label="Special Instructions / What should I mention?"
+              rows={3}
+              value={renewal.input.userNotes}
+              placeholder="Example: Mention the renewal and longer-term option, but ask them to call me rather than send statements."
+              onChange={(event) => renewal.edit('userNotes', event.target.value)}
+            />
+          </Field>
         </div>
 
         <details className="rounded-lg border border-edge bg-surface-2/40 p-3">

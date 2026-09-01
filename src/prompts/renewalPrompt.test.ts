@@ -184,6 +184,8 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toContain('"objective": "renewal_plus_alternative_options"');
     expect(prompt).toContain('"lenderRules"');
     expect(prompt).toContain('"userNotes": "Keep the CTA low-pressure."');
+    expect(prompt).toMatch(/userNotes is direct rep guidance and has high priority/i);
+    expect(prompt).toMatch(/interpret its intent naturally; do not copy it word-for-word/i);
     expect(prompt).toMatch(/do not dump the profile or funding record into the message/i);
     expect(prompt).toMatch(/do not reuse a generic template with only nouns swapped/i);
     expect(prompt).toMatch(/one relevant operational detail.*specific realistic capital uses/i);

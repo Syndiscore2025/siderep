@@ -133,6 +133,7 @@ export interface RenewalDraft {
   /** Retained in memory for the generated draft; never written to Renewal history. */
   researchContext?: RenewalMerchantContext;
   researchFactsUsed?: string[];
+  researchConfidence?: RenewalBusinessResearch['confidence'];
 }
 
 export interface RenewalSentEmailRecord {

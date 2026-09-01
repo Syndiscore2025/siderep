@@ -85,7 +85,9 @@ const OBJECTIVES: RenewalOutreachObjective[] = [
 ];
 const DRAFT_KEYS = [
   'outreachObjective',
+  'researchConfidence',
   'researchFactsUsed',
+  'genericnessCheck',
   'businessSummary',
   'emailSubject',
   'emailBody',
@@ -100,6 +102,7 @@ const DRAFT_SCHEMA = {
       enum: OBJECTIVES,
       description: 'Must exactly match the fixed outreach objective supplied in context.',
     },
+    researchConfidence: { type: 'string', enum: ['high', 'medium', 'low'] },
     researchFactsUsed: {
       type: 'array',
       minItems: 0,
@@ -107,6 +110,11 @@ const DRAFT_SCHEMA = {
       items: { type: 'string', maxLength: 300 },
       description:
         'Two to four short facts grounded in verified business research and used naturally in the email; empty only when the exact business is unverified.',
+    },
+    genericnessCheck: {
+      type: 'boolean',
+      description:
+        'True only if the email could be sent to almost any company by changing only its company name.',
     },
     businessSummary: {
       type: 'string',
@@ -136,13 +144,14 @@ const DRAFT_SCHEMA = {
 } as const;
 
 type JsonRecord = Record<string, unknown>;
-type DraftContent = Omit<RenewalDraft, 'sources'> & {
+type DraftContent = Omit<RenewalDraft, 'sources' | 'researchContext'> & {
   outreachObjective: RenewalOutreachObjective;
   researchFactsUsed: string[];
+  genericnessCheck: boolean;
 };
 type SourceCandidate = { url: string; title?: string };
 type ResponseStage = {
-  input: string;
+  input: string | Array<{ role: 'system' | 'user'; content: string }>;
   schemaName?: string;
   schema?: object;
   webSearch: boolean;
@@ -443,7 +452,9 @@ function parseDraftContent(
   }
   if (
     typeof value.outreachObjective !== 'string' ||
+    !['high', 'medium', 'low'].includes(String(value.researchConfidence)) ||
     !stringArray(value.researchFactsUsed, 4, 300) ||
+    typeof value.genericnessCheck !== 'boolean' ||
     typeof value.businessSummary !== 'string' ||
     typeof value.emailSubject !== 'string' ||
     typeof value.emailBody !== 'string' ||
@@ -456,7 +467,9 @@ function parseDraftContent(
   }
   const draft: DraftContent = {
     outreachObjective: value.outreachObjective as RenewalOutreachObjective,
+    researchConfidence: value.researchConfidence as RenewalBusinessResearch['confidence'],
     researchFactsUsed: value.researchFactsUsed,
+    genericnessCheck: value.genericnessCheck,
     businessSummary: value.businessSummary,
     emailSubject: value.emailSubject.trim(),
     emailBody: value.emailBody.trim(),
@@ -471,6 +484,9 @@ function parseDraftContent(
   }
   if (!draft.emailSubject || !draft.emailBody || !draft.smsBody) {
     return err(new Error('OpenAI returned an incomplete renewal draft.'));
+  }
+  if (draft.genericnessCheck) {
+    return err(new Error('OpenAI marked the outreach as too generic for the merchant.'));
   }
   const markdown = /(?:\*\*|__|`|^\s*(?:#{1,6}\s|[-*+]\s|[0-9]+\.\s))/m;
   if (markdown.test(draft.emailBody) || markdown.test(draft.smsBody)) {
@@ -745,6 +761,104 @@ function validateFundingScenario(
   return ok(content);
 }
 
+function greetingUsesMerchantName(text: string, merchantFirstName: string): boolean {
+  const name = comparable(merchantFirstName);
+  if (!name) return true;
+  const greeting = comparable(text.split('\n').find((line) => line.trim()) ?? '');
+  return [
+    name,
+    `hi ${name}`,
+    `hello ${name}`,
+    `good morning ${name}`,
+    `good afternoon ${name}`,
+  ].some((prefix) => greeting.startsWith(prefix));
+}
+
+function suppliedMoneyValues(context: RenewalMerchantContext): Set<string> {
+  const values = [
+    context.funding.originalFundingAmount,
+    context.funding.currentBalance,
+    context.funding.possibleLineOfCredit,
+    context.funding.existingOutstandingOffer,
+  ];
+  return new Set(
+    values
+      .flatMap((value) => value.match(/\d[\d,]*(?:\.\d+)?/g) ?? [])
+      .map((value) => Number(value.replaceAll(',', '')).toFixed(2)),
+  );
+}
+
+function validateChannelDetails(
+  content: DraftContent,
+  context: RenewalMerchantContext,
+): Result<DraftContent> {
+  const merchant = context.merchant.merchantFirstName;
+  if (
+    !greetingUsesMerchantName(content.emailBody, merchant) ||
+    !greetingUsesMerchantName(content.smsBody, merchant)
+  ) {
+    return err(new Error('OpenAI did not address the merchant by first name in both greetings.'));
+  }
+  const representative = comparable(context.representative.name);
+  if (
+    representative &&
+    representative !== comparable(merchant) &&
+    (greetingUsesMerchantName(content.emailBody, context.representative.name) ||
+      greetingUsesMerchantName(content.smsBody, context.representative.name))
+  ) {
+    return err(new Error('OpenAI used the representative name as the merchant greeting.'));
+  }
+  const paidInMatch = context.funding.paidInPercentage.match(/[0-9]{1,3}(?:\.[0-9]+)?/);
+  if (paidInMatch) {
+    const paidInMentions = [content.emailBody, content.smsBody]
+      .join('\n')
+      .matchAll(
+        /(?:([0-9]{1,3}(?:\.[0-9]+)?)\s*%\s*paid(?:[-\s]*in)?|paid(?:[-\s]*in)?[^0-9]{0,12}([0-9]{1,3}(?:\.[0-9]+)?)\s*%)/gi,
+      );
+    if ([...paidInMentions].some((match) => (match[1] ?? match[2]) !== paidInMatch[0])) {
+      return err(new Error('OpenAI used an incorrect paid-in percentage.'));
+    }
+  }
+  const suppliedAmounts = suppliedMoneyValues(context);
+  const mentionedAmounts = [content.emailBody, content.smsBody]
+    .join('\n')
+    .matchAll(/\$\s*([0-9][0-9,]*(?:\.\d{1,2})?)/g);
+  if (
+    [...mentionedAmounts].some(
+      (match) => !suppliedAmounts.has(Number(match[1].replaceAll(',', '')).toFixed(2)),
+    )
+  ) {
+    return err(new Error('OpenAI used a funding amount that was not supplied.'));
+  }
+  const expectedState = comparable(context.merchant.state || context.businessResearch.state);
+  const expectedCity = comparable(context.merchant.city || context.businessResearch.city);
+  const stateMentions =
+    [content.emailBody, content.smsBody].join('\n').match(/\b[A-Z]{2}\b/g) ?? [];
+  if (
+    expectedState &&
+    stateMentions.some((state) => comparable(state) !== expectedState && state !== 'OK')
+  ) {
+    return err(new Error('OpenAI used an unsupported business location.'));
+  }
+  const locationMentions = [content.emailBody, content.smsBody]
+    .join('\n')
+    .matchAll(/\b(?:in|at|from|near)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}),?\s+([A-Z]{2})\b/g);
+  if (
+    expectedCity &&
+    [...locationMentions].some(
+      (match) => comparable(match[1]) !== expectedCity || comparable(match[2]) !== expectedState,
+    )
+  ) {
+    return err(new Error('OpenAI used an unsupported business location.'));
+  }
+  const cta =
+    /\b(?:can we|would you|are you available|is there a time|let'?s|reply|call|schedule|connect|review|talk|discuss|take a look)\b/i;
+  if (!cta.test(content.emailBody) || !cta.test(content.smsBody)) {
+    return err(new Error('OpenAI outreach needs a clear call to action in both email and SMS.'));
+  }
+  return ok(content);
+}
+
 function validatePersonalization(
   content: DraftContent,
   context: RenewalMerchantContext,
@@ -761,6 +875,14 @@ function validatePersonalization(
       !includesAny(content.smsBody, identityAnchors))
   ) {
     return err(new Error('OpenAI output was not personalized to the supplied merchant identity.'));
+  }
+  const businessAnchors = anchors([context.merchant.legalBusinessName, context.merchant.dba]);
+  if (
+    businessAnchors.length &&
+    (!includesAny(`${content.emailSubject}\n${content.emailBody}`, businessAnchors) ||
+      !includesAny(content.smsBody, businessAnchors))
+  ) {
+    return err(new Error('OpenAI output did not identify the correct business in both channels.'));
   }
   if (
     context.funding.currentLender &&
@@ -788,6 +910,8 @@ function validatePersonalization(
   if (!claims.ok) return claims;
   const scenario = validateFundingScenario(content, context);
   if (!scenario.ok) return scenario;
+  const channelDetails = validateChannelDetails(content, context);
+  if (!channelDetails.ok) return channelDetails;
   if (!context.businessResearch.exactBusinessVerified) {
     if (content.researchFactsUsed.length) {
       return err(
@@ -813,6 +937,11 @@ function validatePersonalization(
       return err(new Error('OpenAI used unverified business research in outreach.'));
     }
     return ok(content);
+  }
+  if (content.researchConfidence !== context.businessResearch.confidence) {
+    return err(
+      new Error('OpenAI returned a research confidence level that did not match the profile.'),
+    );
   }
   const facts = content.researchFactsUsed.map((fact) => fact.trim()).filter(Boolean);
   if (
@@ -863,7 +992,12 @@ function parseGenerationResponse(
   if (!content.ok) return content;
   const personalized = validatePersonalization(content.value, context);
   if (!personalized.ok) return personalized;
-  const { outreachObjective: _objective, researchFactsUsed, ...draft } = personalized.value;
+  const {
+    outreachObjective: _objective,
+    researchFactsUsed,
+    genericnessCheck: _genericnessCheck,
+    ...draft
+  } = personalized.value;
   const verifiedSources = context.businessResearch.exactBusinessVerified ? sources : [];
   const businessSummary = verifiedSources.length ? draft.businessSummary : '';
   return ok({
@@ -922,7 +1056,10 @@ export class OpenAIResponsesService implements RenewalResearchService {
   async testConnection(signal?: AbortSignal): Promise<Result<void>> {
     const response = await this.request(
       {
-        input: 'Respond with exactly: OK',
+        input: [
+          { role: 'system', content: 'You are a connection test.' },
+          { role: 'user', content: 'Respond with exactly: OK' },
+        ],
         webSearch: false,
         maxOutputTokens: 16,
         applyAIControls: false,
@@ -1000,18 +1137,39 @@ export class OpenAIResponsesService implements RenewalResearchService {
     );
     if (!researched.ok) return researched;
     const context = buildRenewalMerchantContext(request, researched.value.research);
+    const generationInput = buildRenewalGenerationPrompt(context);
     const generationResponse = await this.request(
       {
-        input: buildRenewalGenerationPrompt(context),
+        input: generationInput,
         schemaName: 'renewal_personalized_outreach',
         schema: DRAFT_SCHEMA,
         webSearch: false,
       },
       signal,
     );
-    return generationResponse.ok
-      ? parseGenerationResponse(generationResponse.value, context, researched.value.sources)
-      : generationResponse;
+    if (!generationResponse.ok) return generationResponse;
+    const generated = parseGenerationResponse(
+      generationResponse.value,
+      context,
+      researched.value.sources,
+    );
+    if (generated.ok) return generated;
+    const validationFeedback = /too generic/i.test(generated.error.message)
+      ? 'The prior draft was generic. Regenerate it with more verified business-specific context, a distinct structure, and genericnessCheck set accurately.'
+      : `The prior draft failed validation: ${generated.error.message} Regenerate it with only the supplied, verified context and all channel requirements met.`;
+
+    const regenerated = await this.request(
+      {
+        input: `${generationInput}\n\n<validation_feedback>\n${validationFeedback}\n</validation_feedback>`,
+        schemaName: 'renewal_personalized_outreach',
+        schema: DRAFT_SCHEMA,
+        webSearch: false,
+      },
+      signal,
+    );
+    return regenerated.ok
+      ? parseGenerationResponse(regenerated.value, context, researched.value.sources)
+      : regenerated;
   }
 }
 

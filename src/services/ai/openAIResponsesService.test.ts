@@ -64,7 +64,9 @@ const RESEARCH: RenewalBusinessResearch = {
 };
 const DRAFT = {
   outreachObjective: 'renewal_plus_alternative_options',
+  researchConfidence: 'high',
   researchFactsUsed: ['Ingredient inventory', 'Delivery payroll'],
+  genericnessCheck: false,
   businessSummary: 'Example Bakery produces baked goods for local restaurants.',
   emailSubject: 'Example Bakery renewal options',
   emailBody:
@@ -117,7 +119,8 @@ function workflow(
   return vi
     .spyOn(globalThis, 'fetch')
     .mockResolvedValueOnce(research)
-    .mockResolvedValueOnce(generation);
+    .mockResolvedValueOnce(generation)
+    .mockResolvedValueOnce(generation.clone());
 }
 
 function service(): OpenAIResponsesService {
@@ -171,7 +174,9 @@ describe('OpenAIResponsesService two-stage contract', () => {
     expect(generationBody).not.toHaveProperty('tool_choice');
     expect(generationBody.text.format.schema.required).toEqual([
       'outreachObjective',
+      'researchConfidence',
       'researchFactsUsed',
+      'genericnessCheck',
       'businessSummary',
       'emailSubject',
       'emailBody',
@@ -195,12 +200,33 @@ describe('OpenAIResponsesService two-stage contract', () => {
     const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
     expect(body).toMatchObject({
       model: 'gpt-5-mini',
-      input: 'Respond with exactly: OK',
+      input: [
+        { role: 'system', content: 'You are a connection test.' },
+        { role: 'user', content: 'Respond with exactly: OK' },
+      ],
       max_output_tokens: 16,
     });
     expect(body).not.toHaveProperty('tools');
     expect(body).not.toHaveProperty('reasoning');
     expect(body).not.toHaveProperty('text');
+  });
+
+  it('regenerates a draft that the model marks generic before returning it', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(researchCompleted()))
+      .mockResolvedValueOnce(
+        jsonResponse(generationCompleted({ ...DRAFT, genericnessCheck: true })),
+      )
+      .mockResolvedValueOnce(jsonResponse(generationCompleted(DRAFT)));
+
+    const result = await service().research(REQUEST);
+
+    expect(result.ok).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    const retryBody = JSON.parse(String(fetchSpy.mock.calls[2]?.[1]?.body));
+    expect(retryBody.input).toContain('The prior draft was generic. Regenerate it');
+    expect(retryBody).not.toHaveProperty('tools');
   });
 
   it('applies the centralized model, reasoning, verbosity, and token settings to both pipeline stages', async () => {
@@ -235,6 +261,7 @@ describe('OpenAIResponsesService two-stage contract', () => {
     });
     const fallbackDraft = {
       ...DRAFT,
+      researchConfidence: 'low',
       researchFactsUsed: [],
       emailBody:
         'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
@@ -289,6 +316,7 @@ describe('OpenAIResponsesService validation', () => {
   it('still generates from supplied context after a search with no safe source', async () => {
     const fallbackDraft = {
       ...DRAFT,
+      researchConfidence: 'low',
       researchFactsUsed: [],
       emailBody:
         'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
@@ -438,7 +466,7 @@ describe('OpenAIResponsesService validation', () => {
         outreachObjective: 'line_of_credit',
         emailSubject: 'Example Bakery working-capital options',
         emailBody:
-          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding. We may still explore additional working capital through another funding option, including a $20,000 line of credit you can draw as needed for ingredient inventory and delivery payroll.',
+          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding. We may still explore additional working capital through another funding option, including a $20,000 line of credit you can draw as needed for ingredient inventory and delivery payroll. Would you like to discuss it this week?',
       },
     ],
     [
@@ -458,7 +486,7 @@ describe('OpenAIResponsesService validation', () => {
         outreachObjective: 'term_loan',
         emailSubject: 'Example Bakery working-capital options',
         emailBody:
-          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding. We may still explore additional working capital through another funding option. Based on your established payment history, it may be worth checking whether a 36-month term loan is available for ingredient inventory and delivery payroll.',
+          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding. We may still explore additional working capital through another funding option. Based on your established payment history, it may be worth checking whether a 36-month term loan is available for ingredient inventory and delivery payroll. Can we discuss it this week?',
       },
     ],
     [
@@ -622,6 +650,45 @@ describe('OpenAIResponsesService validation', () => {
       'malformed research',
       researchCompleted({ ...RESEARCH, products: 'bread' }),
       /research schema/i,
+    ],
+    [
+      'incorrect merchant greeting',
+      generationCompleted({ ...DRAFT, emailBody: DRAFT.emailBody.replace('Hi Ada', 'Hi Rep') }),
+      /merchant by first name in both greetings/i,
+    ],
+    [
+      'incorrect paid-in percentage',
+      generationCompleted({ ...DRAFT, emailBody: `${DRAFT.emailBody} You are 55% paid in.` }),
+      /incorrect paid-in percentage/i,
+    ],
+    [
+      'unsupported funding amount',
+      generationCompleted({
+        ...DRAFT,
+        emailBody: `${DRAFT.emailBody} A $999,999 option is available.`,
+      }),
+      /funding amount that was not supplied/i,
+    ],
+    [
+      'unsupported business location',
+      generationCompleted({ ...DRAFT, emailBody: `${DRAFT.emailBody} Our CA team can help.` }),
+      /unsupported business location/i,
+    ],
+    [
+      'missing calls to action',
+      generationCompleted({
+        ...DRAFT,
+        emailBody: DRAFT.emailBody
+          .replace('We can review renewal options', 'Renewal options are available')
+          .replace('Would you have time to connect?', 'Thank you.'),
+        smsBody: 'Hi Ada, Example Bakery has renewal options with Example Funding.',
+      }),
+      /clear call to action/i,
+    ],
+    [
+      'mismatched research confidence',
+      generationCompleted({ ...DRAFT, researchConfidence: 'low' }),
+      /confidence level that did not match/i,
     ],
     [
       'wrong objective',

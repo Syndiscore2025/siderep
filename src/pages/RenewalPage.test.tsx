@@ -102,6 +102,20 @@ describe('RenewalPage', () => {
     expect(document.querySelector('#siderep-lender-profiles')).toBeInTheDocument();
   });
 
+  it('keeps optional special instructions prominent and in the active outreach input', () => {
+    renderPage();
+    const instructions = screen.getByRole('textbox', {
+      name: 'Special Instructions / What should I mention?',
+    });
+
+    fireEvent.change(instructions, {
+      target: { value: 'Ask Avery to call me, not send statements.' },
+    });
+
+    expect(instructions).toHaveValue('Ask Avery to call me, not send statements.');
+    expect(screen.queryByLabelText('Rep notes / special instruction')).not.toBeInTheDocument();
+  });
+
   it('keeps funding details optional while retaining eligibility and manual fallback guidance', async () => {
     renderPage();
     const fundingDetails = screen.getByText('+ Add Funding Details').closest('details');
@@ -134,33 +148,31 @@ describe('RenewalPage', () => {
     expect(await screen.findByText(/still enter the details manually/i)).toBeInTheDocument();
   });
 
-  it('generates readonly drafts, filters unsafe sources, and copies email and text separately', async () => {
+  it('generates only readonly subject, email, and text outputs with separate copy actions', async () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     renderPage();
     enterMinimumInput();
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
 
-    expect(await screen.findByText(DRAFT.businessSummary)).toBeInTheDocument();
+    await screen.findByRole('textbox', { name: 'Subject' });
     const businessDetails = screen.getByRole('region', { name: 'Business details' });
     const generatedOutreach = screen.getByRole('region', { name: 'Generated outreach' });
     expect(within(businessDetails).getByRole('textbox', { name: 'Business name' })).toHaveValue(
       'Acme',
     );
-    expect(within(generatedOutreach).getByRole('textbox', { name: 'Email body' })).toHaveValue(
+    expect(within(generatedOutreach).getByRole('textbox', { name: 'Email' })).toHaveValue(
       DRAFT.emailBody,
     );
-    expect(within(generatedOutreach).getByRole('textbox', { name: 'SMS text' })).toHaveValue(
+    expect(within(generatedOutreach).getByRole('textbox', { name: 'Text Message' })).toHaveValue(
       DRAFT.smsBody,
     );
-    const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute('href', 'https://example.com/acme');
-    expect(links[0]).toHaveAttribute('target', '_blank');
-    expect(links[0]).toHaveAttribute('rel', 'noreferrer');
-    expect(screen.getByRole('textbox', { name: 'Email subject' })).toHaveAttribute('readonly');
-    expect(screen.getByRole('textbox', { name: 'Email body' })).toHaveAttribute('readonly');
-    expect(screen.getByRole('textbox', { name: 'SMS text' })).toHaveAttribute('readonly');
+    expect(
+      screen.queryByRole('heading', { name: /Business summary|Sources/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Subject' })).toHaveAttribute('readonly');
+    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveAttribute('readonly');
+    expect(screen.getByRole('textbox', { name: 'Text Message' })).toHaveAttribute('readonly');
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy Email' }));
     await waitFor(() =>
@@ -174,7 +186,7 @@ describe('RenewalPage', () => {
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(DRAFT.smsBody));
   });
 
-  it('keeps source-free drafts copy-ready and warns that no verified source was returned', async () => {
+  it('keeps source-free drafts copy-ready without showing internal research fields', async () => {
     const sourceFreeDraft = { ...DRAFT, businessSummary: '', sources: [] };
     const sourceFreeResearch: RenewalResearchService = {
       isConfigured: () => true,
@@ -187,10 +199,9 @@ describe('RenewalPage', () => {
     enterMinimumInput();
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
 
-    expect(await screen.findByText(/no verified web source was returned/i)).toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Email' })).toHaveValue(DRAFT.emailBody);
     expect(screen.queryByRole('heading', { name: 'Sources' })).not.toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Email body' })).toHaveValue(DRAFT.emailBody);
-    expect(screen.getByRole('textbox', { name: 'SMS text' })).toHaveValue(DRAFT.smsBody);
+    expect(screen.getByRole('textbox', { name: 'Text Message' })).toHaveValue(DRAFT.smsBody);
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy Text' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(DRAFT.smsBody));
@@ -204,12 +215,12 @@ describe('RenewalPage', () => {
     renderPage();
     enterMinimumInput();
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
-    await screen.findByText(DRAFT.businessSummary);
+    await screen.findByRole('textbox', { name: 'Subject' });
     fireEvent.click(screen.getByRole('button', { name: 'Copy Subject' }));
 
     expect(await screen.findByText(/could not copy subject/i)).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
-    expect(screen.getByRole('textbox', { name: 'Email subject' })).toHaveValue(DRAFT.emailSubject);
+    expect(screen.getByRole('textbox', { name: 'Subject' })).toHaveValue(DRAFT.emailSubject);
     expect(
       screen.queryByRole('button', { name: /send email|recipient|provider/i }),
     ).not.toBeInTheDocument();

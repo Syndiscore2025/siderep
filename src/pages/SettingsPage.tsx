@@ -57,6 +57,7 @@ export function SettingsPage() {
   const [form, setForm] = useState<Settings>(() => settingsForPlatform(settings, extension));
   const [showAssistantApiKey, setShowAssistantApiKey] = useState(false);
   const [showRenewalApiKey, setShowRenewalApiKey] = useState(false);
+  const [lenderProfilesResetToken, setLenderProfilesResetToken] = useState(0);
   const [test, setTest] = useState<TestState>({ status: 'idle' });
   const [renewalTest, setRenewalTest] = useState<TestState>({ status: 'idle' });
   const [google, setGoogle] = useState<TestState>({ status: 'idle' });
@@ -160,6 +161,7 @@ export function SettingsPage() {
             <LenderProfilesCard
               profiles={form.lenderProfiles}
               onChange={(lenderProfiles) => setForm((current) => ({ ...current, lenderProfiles }))}
+              resetToken={lenderProfilesResetToken}
             />
 
             <Card
@@ -228,7 +230,7 @@ export function SettingsPage() {
                   {renewalTest.status === 'ok' && (
                     <span className="flex animate-fade-in items-center gap-1 text-[11px] font-medium text-success">
                       <CheckIcon className="size-3.5" />
-                      Connection succeeded
+                      Connection successful
                     </span>
                   )}
                   {renewalTest.status === 'error' && (
@@ -536,7 +538,11 @@ export function SettingsPage() {
             <Button
               variant="primary"
               loading={saveSettings.isPending}
-              onClick={() => saveSettings.mutate(form)}
+              onClick={() =>
+                saveSettings.mutate(form, {
+                  onSuccess: () => setLenderProfilesResetToken((current) => current + 1),
+                })
+              }
             >
               Save Settings
             </Button>

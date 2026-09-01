@@ -36,6 +36,9 @@ describe('SettingsPage Assistant OpenAI configuration', () => {
     const lenderNames = lenderCard.getAllByLabelText('Lender name');
     fireEvent.change(lenderNames[1]!, { target: { value: 'Expansion Capital Group' } });
     const addedProfile = lenderSection.querySelectorAll('details')[1]!;
+    expect(addedProfile).toHaveAttribute('open');
+    expect(lenderCard.getAllByLabelText('Lender name')[1]).toHaveValue('Expansion Capital Group');
+    expect(addedProfile.innerHTML).toContain('max-h-[34rem]');
     fireEvent.change(addedProfile.querySelector('input[type="number"]')!, {
       target: { value: '55' },
     });
@@ -49,6 +52,7 @@ describe('SettingsPage Assistant OpenAI configuration', () => {
         name: 'Expansion Capital Group',
         standardRenewalThreshold: 55,
       });
+      expect(lenderSection.querySelectorAll('details')[1]).not.toHaveAttribute('open');
     });
   });
 
