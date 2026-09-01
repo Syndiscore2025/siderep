@@ -159,13 +159,19 @@ export class OpenAIChatService implements AIService {
 
   async testConnection(signal?: AbortSignal): Promise<Result<void>> {
     const result = await this.complete({
-      messages: [{ role: 'user', content: 'ping' }],
+      messages: [
+        { role: 'system', content: 'You are a connection test.' },
+        { role: 'user', content: 'Respond with exactly: OK' },
+      ],
       model: this.settings.assistantAI.model,
       temperature: 0,
-      maxTokens: 1,
+      maxTokens: 64,
       signal,
     });
-    return result.ok ? ok(undefined) : err(result.error);
+    if (!result.ok) return result;
+    return result.value.content.trim() === 'OK'
+      ? ok(undefined)
+      : err(new Error('OpenAI test connection returned an unexpected response.'));
   }
 }
 

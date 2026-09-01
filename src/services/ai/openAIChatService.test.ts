@@ -138,10 +138,30 @@ describe('OpenAIChatService', () => {
 
   it('tests the configured Assistant connection', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: 'OK' } }] }),
+    );
+    const result = await new OpenAIChatService(CONFIGURED).testConnection();
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(String(vi.mocked(globalThis.fetch).mock.calls[0]?.[1]?.body));
+    expect(body).toMatchObject({
+      model: 'gpt-4.1-mini',
+      messages: [
+        { role: 'system', content: 'You are a connection test.' },
+        { role: 'user', content: 'Respond with exactly: OK' },
+      ],
+      max_tokens: 64,
+      store: false,
+    });
+  });
+
+  it('rejects an unreadable or unexpected Assistant connection response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({ choices: [{ message: { content: 'pong' } }] }),
     );
-    await expect(new OpenAIChatService(CONFIGURED).testConnection()).resolves.toMatchObject({
-      ok: true,
-    });
+
+    const result = await new OpenAIChatService(CONFIGURED).testConnection();
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/unexpected response/i);
   });
 });

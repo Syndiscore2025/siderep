@@ -309,7 +309,7 @@ export function SettingsPage() {
                   {test.status === 'ok' && (
                     <span className="flex animate-fade-in items-center gap-1 text-[11px] font-medium text-success">
                       <CheckIcon className="size-3.5" />
-                      Connection succeeded
+                      Connection successful
                     </span>
                   )}
                   {test.status === 'error' && (

@@ -65,7 +65,7 @@ describe('checkAssistantOpenAI', () => {
 
   it('passes when the completions probe succeeds', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      jsonResponse({ choices: [{ message: { content: 'ok' } }] }),
+      jsonResponse({ choices: [{ message: { content: 'OK' } }] }),
     );
     const result = await checkAssistantOpenAI(CONFIGURED_ASSISTANT);
     expect(result.status).toBe('pass');
