@@ -55,7 +55,47 @@ describe('SettingsPage Assistant OpenAI configuration', () => {
         apiKey: 'test-assistant-key',
         model: 'gpt-4.1-mini',
       });
-      expect(settings.renewalAI).toEqual({ apiKey: '', model: '' });
+      expect(settings.renewalAI).toEqual({ apiKey: '', model: 'gpt-5.6-sol' });
+    });
+  });
+
+  it('persists the centralized merchant AI configuration from existing Settings areas', async () => {
+    renderPage();
+    const renewalHeading = await screen.findByRole('heading', { name: 'OpenAI Renewal' });
+    const renewal = within(renewalHeading.closest('section')!);
+    expect(renewal.getByPlaceholderText('gpt-5.6-sol')).toHaveValue('gpt-5.6-sol');
+    expect(screen.getByRole('combobox', { name: 'Reasoning effort' })).toHaveValue('medium');
+    expect(screen.getByRole('combobox', { name: 'Verbosity' })).toHaveValue('medium');
+    expect(screen.getByRole('spinbutton', { name: 'Max output tokens' })).toHaveValue(6000);
+    expect(screen.getByRole('switch', { name: 'Web search' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+
+    fireEvent.change(renewal.getByPlaceholderText('gpt-5.6-sol'), {
+      target: { value: 'custom-model-id' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Reasoning effort' }), {
+      target: { value: 'high' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Verbosity' }), {
+      target: { value: 'low' },
+    });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Max output tokens' }), {
+      target: { value: '7000' },
+    });
+    fireEvent.click(screen.getByRole('switch', { name: 'Web search' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }));
+
+    await waitFor(async () => {
+      const settings = await loadSettings();
+      expect(settings.renewalAI.model).toBe('custom-model-id');
+      expect(settings.ai).toMatchObject({
+        reasoningEffort: 'high',
+        verbosity: 'low',
+        maxOutputTokens: 7000,
+        webSearchEnabled: false,
+      });
     });
   });
 });

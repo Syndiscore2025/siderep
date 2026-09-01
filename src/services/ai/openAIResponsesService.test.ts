@@ -97,6 +97,13 @@ function generationCompleted(draft: unknown = DRAFT): unknown {
   };
 }
 
+function connectionCompleted(text = 'OK'): unknown {
+  return {
+    status: 'completed',
+    output: [{ type: 'message', content: [{ type: 'output_text', text }] }],
+  };
+}
+
 function workflow(
   research: Response = jsonResponse(researchCompleted()),
   generation: Response = jsonResponse(generationCompleted()),
@@ -132,7 +139,12 @@ describe('OpenAIResponsesService two-stage contract', () => {
       tools: [{ type: 'web_search', search_context_size: 'high', external_web_access: true }],
       tool_choice: 'required',
       include: ['web_search_call.action.sources'],
-      text: { format: { name: 'renewal_business_research', strict: true } },
+      reasoning: { effort: 'medium' },
+      max_output_tokens: 6000,
+      text: {
+        verbosity: 'medium',
+        format: { name: 'renewal_business_research', strict: true },
+      },
     });
     const context = buildRenewalMerchantContext(REQUEST, RESEARCH);
     const generationBody = JSON.parse(String(fetchSpy.mock.calls[1][1]?.body));
@@ -140,7 +152,12 @@ describe('OpenAIResponsesService two-stage contract', () => {
       model: 'gpt-5-mini',
       input: buildRenewalGenerationPrompt(context),
       store: false,
-      text: { format: { name: 'renewal_personalized_outreach', strict: true } },
+      reasoning: { effort: 'medium' },
+      max_output_tokens: 6000,
+      text: {
+        verbosity: 'medium',
+        format: { name: 'renewal_personalized_outreach', strict: true },
+      },
     });
     expect(generationBody).not.toHaveProperty('tools');
     expect(generationBody).not.toHaveProperty('tool_choice');
@@ -159,6 +176,77 @@ describe('OpenAIResponsesService two-stage contract', () => {
     const result = await new OpenAIResponsesService(DEFAULT_SETTINGS).research(REQUEST);
     expect(result.ok).toBe(false);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses the selected model for a tiny connection probe without web search or pipeline controls', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse(connectionCompleted()));
+    const result = await service().testConnection();
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({
+      model: 'gpt-5-mini',
+      input: 'Respond with exactly: OK',
+      max_output_tokens: 16,
+    });
+    expect(body).not.toHaveProperty('tools');
+    expect(body).not.toHaveProperty('reasoning');
+    expect(body).not.toHaveProperty('text');
+  });
+
+  it('applies the centralized model, reasoning, verbosity, and token settings to both pipeline stages', async () => {
+    const configured = new OpenAIResponsesService({
+      ...SETTINGS,
+      renewalAI: { ...SETTINGS.renewalAI, model: 'gpt-5.6-sol' },
+      ai: {
+        ...SETTINGS.ai,
+        reasoningEffort: 'high',
+        verbosity: 'high',
+        maxOutputTokens: 7200,
+      },
+    });
+    const fetchSpy = workflow();
+    const result = await configured.research(REQUEST);
+    expect(result.ok).toBe(true);
+    for (const call of fetchSpy.mock.calls) {
+      const body = JSON.parse(String(call[1]?.body));
+      expect(body).toMatchObject({
+        model: 'gpt-5.6-sol',
+        reasoning: { effort: 'high' },
+        max_output_tokens: 7200,
+        text: { verbosity: 'high' },
+      });
+    }
+  });
+
+  it('removes web search at runtime and uses only supplied information when disabled', async () => {
+    const webSearchDisabled = new OpenAIResponsesService({
+      ...SETTINGS,
+      ai: { ...SETTINGS.ai, webSearchEnabled: false },
+    });
+    const fallbackDraft = {
+      ...DRAFT,
+      researchFactsUsed: [],
+      emailBody:
+        'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
+      smsBody: 'Hi Ada, can we review renewal options for Example Bakery?',
+    };
+    const fetchSpy = workflow(
+      jsonResponse({
+        status: 'completed',
+        output: [
+          { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(RESEARCH) }] },
+        ],
+      }),
+      jsonResponse(generationCompleted(fallbackDraft)),
+    );
+    const result = await webSearchDisabled.research(REQUEST);
+    expect(result.ok).toBe(true);
+    const researchBody = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(researchBody).not.toHaveProperty('tools');
+    expect(researchBody).not.toHaveProperty('tool_choice');
+    expect(researchBody.input).toMatch(/Web search is disabled/i);
   });
 });
 
@@ -191,14 +279,21 @@ describe('OpenAIResponsesService validation', () => {
   });
 
   it('still generates from supplied context after a search with no safe source', async () => {
+    const fallbackDraft = {
+      ...DRAFT,
+      researchFactsUsed: [],
+      emailBody:
+        'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
+      smsBody: 'Hi Ada, can we review renewal options for Example Bakery?',
+    };
     workflow(
       jsonResponse(researchCompleted(RESEARCH, [{ url: 'javascript:alert(1)' }])),
-      jsonResponse(generationCompleted({ ...DRAFT, researchFactsUsed: [] })),
+      jsonResponse(generationCompleted(fallbackDraft)),
     );
     const result = await service().research(REQUEST);
     expect(result.ok && result.value.sources).toEqual([]);
     expect(result.ok && result.value.businessSummary).toBe('');
-    expect(result.ok && result.value.smsBody).toBe(DRAFT.smsBody);
+    expect(result.ok && result.value.smsBody).toBe(fallbackDraft.smsBody);
   });
 
   it('rejects research that skipped required web search', async () => {

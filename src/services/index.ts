@@ -18,6 +18,8 @@ export type { SettingsPatch } from './settings/settingsService';
 
 export { OpenAIChatService, createAIService } from './ai/openAIChatService';
 export type { AIService } from './ai/openAIChatService';
+export { createSideRepAIConfig } from './ai/aiConfig';
+export type { SideRepAIConfig } from './ai/aiConfig';
 export {
   OpenAIResponsesService,
   createRenewalResearchService,

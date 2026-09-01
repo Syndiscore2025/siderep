@@ -71,9 +71,11 @@ export type {
 export {
   THEMES,
   SUGGESTED_MODELS,
+  REASONING_EFFORTS,
+  AI_VERBOSITIES,
   settingsSchema,
   DEFAULT_SETTINGS,
   parseSettings,
   isAssistantAIConfigured,
 } from './settings';
-export type { Settings, Theme } from './settings';
+export type { Settings, Theme, ReasoningEffort, AIVerbosity } from './settings';

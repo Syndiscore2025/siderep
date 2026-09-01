@@ -1,4 +1,5 @@
 import { buildRenewalGenerationPrompt, buildRenewalResearchPrompt } from '@/prompts';
+import { createSideRepAIConfig } from '@/services/ai/aiConfig';
 import { buildRenewalMerchantContext } from '@/services/renewal/merchantContext';
 import { addressFromGoogleUrl } from '@/services/renewal/googleAddress';
 import type {
@@ -17,7 +18,6 @@ const RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_RETRIES = 2;
 const BASE_BACKOFF_MS = 250;
 const MAX_BACKOFF_MS = 5_000;
-const MAX_OUTPUT_TOKENS = 4_000;
 
 const RESEARCH_KEYS = [
   'exactBusinessVerified',
@@ -140,14 +140,21 @@ type DraftContent = Omit<RenewalDraft, 'sources'> & {
 type SourceCandidate = { url: string; title?: string };
 type ResponseStage = {
   input: string;
-  schemaName: string;
-  schema: object;
+  schemaName?: string;
+  schema?: object;
   webSearch: boolean;
+  maxOutputTokens?: number;
+  applyAIControls?: boolean;
 };
 
 export interface RenewalResearchService {
   isConfigured(): boolean;
+  testConnection(signal?: AbortSignal): Promise<Result<void>>;
   research(request: RenewalResearchRequest, signal?: AbortSignal): Promise<Result<RenewalDraft>>;
+}
+
+function supportsAdvancedResponseControls(model: string): boolean {
+  return /^(?:gpt-5(?:[.-]|$)|o[0-9]+(?:-|$))/i.test(model.trim());
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -509,8 +516,9 @@ function parseJson(text: string): Result<unknown> {
 function parseResearchResponse(
   value: unknown,
   request: RenewalResearchRequest,
+  requireWebSearch: boolean,
 ): Result<{ research: RenewalBusinessResearch; sources: RenewalSource[] }> {
-  const output = collectOutput(value, true);
+  const output = collectOutput(value, requireWebSearch);
   if (!output.ok) return output;
   const parsed = parseJson(output.value.text);
   if (!parsed.ok) return parsed;
@@ -721,6 +729,24 @@ function validatePersonalization(
         new Error('OpenAI used business research before the exact merchant was verified.'),
       );
     }
+    const suppliedContext = JSON.stringify({
+      merchant: context.merchant,
+      funding: context.funding,
+    });
+    const unverifiedAnchors = anchors([
+      context.businessResearch.industry,
+      context.businessResearch.companyDescription,
+      ...context.businessResearch.products,
+      ...context.businessResearch.services,
+      context.businessResearch.customerType,
+      context.businessResearch.businessModel,
+      context.businessResearch.locationDetails,
+      ...context.businessResearch.currentBusinessActivity,
+      ...context.businessResearch.workingCapitalUses,
+    ]).filter((value) => !includesAny(suppliedContext, [value]));
+    if (unverifiedAnchors.length && includesAny(content.emailBody, unverifiedAnchors)) {
+      return err(new Error('OpenAI used unverified business research in outreach.'));
+    }
     return ok(content);
   }
   const facts = content.researchFactsUsed.map((fact) => fact.trim()).filter(Boolean);
@@ -778,34 +804,65 @@ function parseGenerationResponse(
 }
 
 export class OpenAIResponsesService implements RenewalResearchService {
-  constructor(private readonly settings: Settings) {}
+  private readonly config: ReturnType<typeof createSideRepAIConfig>;
+
+  constructor(private readonly settings: Settings) {
+    this.config = createSideRepAIConfig(settings);
+  }
 
   isConfigured(): boolean {
-    return Boolean(this.settings.renewalAI.apiKey.trim() && this.settings.renewalAI.model.trim());
+    return Boolean(this.settings.renewalAI.apiKey.trim() && this.config.model);
   }
 
   private requestBody(stage: ResponseStage): string {
+    const useAdvancedControls =
+      stage.applyAIControls !== false && supportsAdvancedResponseControls(this.config.model);
+    const text = {
+      ...(useAdvancedControls ? { verbosity: this.config.verbosity } : {}),
+      ...(stage.schema && stage.schemaName
+        ? {
+            format: {
+              type: 'json_schema',
+              name: stage.schemaName,
+              strict: true,
+              schema: stage.schema,
+            },
+          }
+        : {}),
+    };
     return JSON.stringify({
-      model: this.settings.renewalAI.model.trim(),
+      model: this.config.model,
       input: stage.input,
       store: false,
-      ...(stage.webSearch
+      ...(useAdvancedControls ? { reasoning: { effort: this.config.reasoningEffort } } : {}),
+      ...(stage.webSearch && this.config.webSearchEnabled
         ? {
             tools: [{ type: 'web_search', search_context_size: 'high', external_web_access: true }],
             tool_choice: 'required',
             include: ['web_search_call.action.sources'],
           }
         : {}),
-      max_output_tokens: MAX_OUTPUT_TOKENS,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: stage.schemaName,
-          strict: true,
-          schema: stage.schema,
-        },
-      },
+      max_output_tokens: stage.maxOutputTokens ?? this.config.maxOutputTokens,
+      ...(Object.keys(text).length ? { text } : {}),
     });
+  }
+
+  async testConnection(signal?: AbortSignal): Promise<Result<void>> {
+    const response = await this.request(
+      {
+        input: 'Respond with exactly: OK',
+        webSearch: false,
+        maxOutputTokens: 16,
+        applyAIControls: false,
+      },
+      signal,
+    );
+    if (!response.ok) return response;
+    const output = collectOutput(response.value, false);
+    if (!output.ok) return output;
+    return output.value.text.trim() === 'OK'
+      ? ok(undefined)
+      : err(new Error('OpenAI test connection returned an unexpected response.'));
   }
 
   private async request(stage: ResponseStage, signal?: AbortSignal): Promise<Result<unknown>> {
@@ -856,7 +913,7 @@ export class OpenAIResponsesService implements RenewalResearchService {
   ): Promise<Result<RenewalDraft>> {
     const researchResponse = await this.request(
       {
-        input: buildRenewalResearchPrompt(request),
+        input: buildRenewalResearchPrompt(request, this.config.webSearchEnabled),
         schemaName: 'renewal_business_research',
         schema: RESEARCH_SCHEMA,
         webSearch: true,
@@ -864,7 +921,11 @@ export class OpenAIResponsesService implements RenewalResearchService {
       signal,
     );
     if (!researchResponse.ok) return researchResponse;
-    const researched = parseResearchResponse(researchResponse.value, request);
+    const researched = parseResearchResponse(
+      researchResponse.value,
+      request,
+      this.config.webSearchEnabled,
+    );
     if (!researched.ok) return researched;
     const context = buildRenewalMerchantContext(request, researched.value.research);
     const generationResponse = await this.request(
