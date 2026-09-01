@@ -38,7 +38,7 @@ function AuthCard({ children }: { children: ReactNode }) {
             </div>
           </div>
           <span className="rounded-full border border-accent/20 bg-accent-soft px-2.5 py-1 text-[10px] font-semibold text-accent-hover">
-            INVITE ONLY
+            ADMIN MANAGED
           </span>
         </div>
         {children}
@@ -73,6 +73,7 @@ export function AuthGate({
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const [needsPassword, setNeedsPassword] = useState(passwordSetupFlow);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -89,8 +90,14 @@ export function AuthGate({
     const subscription = authClient.onAuthStateChange((event, nextSession) => {
       if (!active) return;
       setSession(nextSession);
-      if (event === 'PASSWORD_RECOVERY') setNeedsPassword(true);
-      if (event === 'SIGNED_OUT') setNeedsPassword(false);
+      if (event === 'SIGNED_OUT') {
+        setNeedsPassword(false);
+        setChangingPassword(false);
+      } else if (event === 'PASSWORD_RECOVERY') {
+        setNeedsPassword(true);
+      } else if (nextSession) {
+        setNeedsPassword(passwordSetupFlow || nextSession.user.passwordConfigured !== true);
+      }
       setLoading(false);
     });
 
@@ -102,6 +109,12 @@ export function AuthGate({
           setInitialError(result.error);
         } else {
           setSession(result.session);
+          setNeedsPassword(
+            Boolean(
+              result.session &&
+              (passwordSetupFlow || result.session.user.passwordConfigured !== true),
+            ),
+          );
         }
         setLoading(false);
       })
@@ -115,7 +128,7 @@ export function AuthGate({
       active = false;
       subscription.unsubscribe();
     };
-  }, [authClient, retry]);
+  }, [authClient, passwordSetupFlow, retry]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -146,10 +159,14 @@ export function AuthGate({
     setBusy(true);
     setActionError(null);
     try {
-      const result = await authClient.updateUser({ password });
+      const result = await authClient.updateUser({
+        password,
+        data: { password_configured: true },
+      });
       if (result.error) setActionError(result.error);
       else {
         setNeedsPassword(false);
+        setChangingPassword(false);
         setPassword('');
         setConfirmation('');
       }
@@ -218,14 +235,16 @@ export function AuthGate({
     );
   }
 
-  if (session && needsPassword) {
+  if (session && (needsPassword || changingPassword)) {
     return (
       <AuthCard>
         <h1 className="text-xl font-semibold tracking-tight text-content-primary">
           Set your password
         </h1>
         <p className="mt-1 text-sm text-content-secondary">
-          Choose a password to finish accessing SideRep.
+          {needsPassword
+            ? 'Replace your administrator-issued temporary password to continue.'
+            : 'Choose a new password for your SideRep account.'}
         </p>
         <form className="mt-5 space-y-4" onSubmit={updatePassword}>
           <label className="block text-xs font-semibold text-content-secondary">
@@ -258,6 +277,20 @@ export function AuthGate({
           <button className={buttonClass} type="submit" disabled={busy}>
             {busy ? 'Updating…' : 'Set password'}
           </button>
+          {!needsPassword && (
+            <button
+              type="button"
+              className="w-full rounded-lg px-3 py-2 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-2 hover:text-content-primary"
+              onClick={() => {
+                setChangingPassword(false);
+                setPassword('');
+                setConfirmation('');
+                setActionError(null);
+              }}
+            >
+              Cancel
+            </button>
+          )}
         </form>
       </AuthCard>
     );
@@ -268,7 +301,7 @@ export function AuthGate({
       <AuthCard>
         <h1 className="text-xl font-semibold tracking-tight text-content-primary">Sign in</h1>
         <p className="mt-1.5 text-sm text-content-secondary">
-          Sign in to continue to your private SideRep workspace.
+          Use the email and password provided by your administrator.
         </p>
         <form className="mt-6 space-y-4" onSubmit={signIn}>
           <label className="block text-xs font-semibold text-content-secondary">
@@ -321,6 +354,13 @@ export function AuthGate({
             {actionError}
           </span>
         )}
+        <button
+          type="button"
+          className="rounded-lg px-2.5 py-1.5 font-medium text-content-secondary transition-colors hover:bg-surface-2 hover:text-content-primary"
+          onClick={() => setChangingPassword(true)}
+        >
+          Change password
+        </button>
         <button
           type="button"
           className="rounded-lg border border-edge bg-surface-2/60 px-3 py-1.5 font-medium text-content-primary

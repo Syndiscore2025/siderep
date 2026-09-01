@@ -53,6 +53,10 @@ function renderGate(harness: AuthHarness, passwordSetupFlow = false) {
   );
 }
 
+function configuredSession(email: string): WebAuthSession {
+  return { user: { email, passwordConfigured: true } };
+}
+
 describe('AuthGate', () => {
   it('shows a safe configuration state without starting auth', () => {
     render(
@@ -80,7 +84,7 @@ describe('AuthGate', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Checking your session');
     await act(async () => {
-      resolveSession({ session: { user: { email: 'rep@example.com' } }, error: null });
+      resolveSession({ session: configuredSession('rep@example.com'), error: null });
     });
     expect(screen.getByText('rep@example.com')).toBeInTheDocument();
     expect(screen.getByText('Protected SideRep app')).toBeInTheDocument();
@@ -106,7 +110,7 @@ describe('AuthGate', () => {
     });
     expect(screen.queryByText(/sign up/i)).not.toBeInTheDocument();
 
-    act(() => harness.emit('SIGNED_IN', { user: { email: 'rep@example.com' } }));
+    act(() => harness.emit('SIGNED_IN', configuredSession('rep@example.com')));
     expect(screen.getByText('Protected SideRep app')).toBeInTheDocument();
   });
 
@@ -125,11 +129,14 @@ describe('AuthGate', () => {
     expect(screen.queryByText('Protected SideRep app')).not.toBeInTheDocument();
   });
 
-  it('allows an invited authenticated user to set a password', async () => {
-    const harness = createAuthHarness({ user: { email: 'invited@example.com' } });
-    renderGate(harness, true);
+  it('requires an admin-created user to replace their temporary password', async () => {
+    const harness = createAuthHarness({
+      user: { email: 'new-user@example.com', passwordConfigured: false },
+    });
+    renderGate(harness);
 
     await screen.findByRole('heading', { name: 'Set your password' });
+    expect(screen.getByText(/administrator-issued temporary password/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('New password'), {
       target: { value: 'new-password' },
     });
@@ -139,13 +146,23 @@ describe('AuthGate', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Set password' }));
 
     await waitFor(() => {
-      expect(harness.client.updateUser).toHaveBeenCalledWith({ password: 'new-password' });
+      expect(harness.client.updateUser).toHaveBeenCalledWith({
+        password: 'new-password',
+        data: { password_configured: true },
+      });
     });
     expect(await screen.findByText('Protected SideRep app')).toBeInTheDocument();
   });
 
+  it('still supports password setup links for an existing user', async () => {
+    const harness = createAuthHarness(configuredSession('invited@example.com'));
+    renderGate(harness, true);
+
+    expect(await screen.findByRole('heading', { name: 'Set your password' })).toBeInTheDocument();
+  });
+
   it('enters password setup when Supabase emits password recovery', async () => {
-    const session = { user: { email: 'recovering@example.com' } };
+    const session = configuredSession('recovering@example.com');
     const harness = createAuthHarness(session);
     renderGate(harness);
 
@@ -173,7 +190,7 @@ describe('AuthGate', () => {
 
   it('signs out without clearing SideRep local data', async () => {
     window.localStorage.setItem('siderep.settings', '{"theme":"dark"}');
-    const harness = createAuthHarness({ user: { email: 'rep@example.com' } });
+    const harness = createAuthHarness(configuredSession('rep@example.com'));
     renderGate(harness);
 
     await screen.findByText('rep@example.com');
@@ -182,5 +199,16 @@ describe('AuthGate', () => {
     await screen.findByRole('heading', { name: 'Sign in' });
     expect(harness.client.signOut).toHaveBeenCalledOnce();
     expect(window.localStorage.getItem('siderep.settings')).toBe('{"theme":"dark"}');
+  });
+
+  it('allows a configured user to change or cancel changing their password', async () => {
+    const harness = createAuthHarness(configuredSession('rep@example.com'));
+    renderGate(harness);
+
+    await screen.findByText('Protected SideRep app');
+    fireEvent.click(screen.getByRole('button', { name: 'Change password' }));
+    expect(screen.getByText(/choose a new password/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByText('Protected SideRep app')).toBeInTheDocument();
   });
 });
