@@ -36,6 +36,7 @@ export interface RenewalInput {
   possibleTermLoan: string;
   specialLenderIncentives: string;
   existingOutstandingOffer: string;
+  userNotes: string;
   website: string;
 }
 
@@ -98,6 +99,7 @@ export interface RenewalMerchantContext {
     singlePositionSupported: boolean;
     expirationUrgencySupported: boolean;
   };
+  userNotes: string;
   representative: RenewalRepProfile;
   sentEmailHistory: RenewalSentEmailContext[];
 }
@@ -202,5 +204,6 @@ export const EMPTY_RENEWAL_INPUT: RenewalInput = {
   possibleTermLoan: '',
   specialLenderIncentives: '',
   existingOutstandingOffer: '',
+  userNotes: '',
   website: '',
 };

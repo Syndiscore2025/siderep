@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, isAssistantAIConfigured, parseSettings } from './sett
 
 describe('parseSettings', () => {
   it('uses the SideRep merchant-pipeline defaults', () => {
+    expect(DEFAULT_SETTINGS.repProfile).toMatchObject({ name: 'Michael', company: '1West' });
     expect(DEFAULT_SETTINGS.renewalAI.model).toBe('gpt-5.6-sol');
     expect(DEFAULT_SETTINGS.ai).toMatchObject({
       reasoningEffort: 'medium',

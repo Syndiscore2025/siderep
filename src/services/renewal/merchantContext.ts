@@ -145,6 +145,7 @@ export function buildRenewalMerchantContext(
     },
     outreachObjective: determineOutreachObjective(request),
     fundingScenario: fundingScenario(request),
+    userNotes: request.input.userNotes,
     representative: { ...request.repProfile },
     sentEmailHistory: [...request.sentEmailHistory].sort(
       (left, right) => Date.parse(left.sentAt) - Date.parse(right.sentAt),

@@ -172,15 +172,20 @@ describe('buildRenewalPrompt', () => {
         possibleLineOfCredit: '$25,000',
         possibleTermLoan: '24 months',
         specialLenderIncentives: 'Reduced fee',
+        userNotes: 'Keep the CTA low-pressure.',
       },
     });
     expect(prompt).toContain('<merchant_outreach_context>');
-    expect(prompt).toContain('"businessResearch"');
+    expect(prompt).toContain('"businessIntelligence"');
+    expect(prompt).toContain('"whatTheyDo"');
     expect(prompt).toContain('"originalFundingAmount": "$50,000"');
     expect(prompt).toContain('"possibleLineOfCredit": "$25,000"');
     expect(prompt).toContain('"specialLenderIncentives": "Reduced fee"');
-    expect(prompt).toContain('"outreachObjective": "renewal_plus_alternative_options"');
+    expect(prompt).toContain('"objective": "renewal_plus_alternative_options"');
+    expect(prompt).toContain('"lenderRules"');
+    expect(prompt).toContain('"userNotes": "Keep the CTA low-pressure."');
     expect(prompt).toMatch(/do not dump the profile or funding record into the message/i);
+    expect(prompt).toMatch(/do not reuse a generic template with only nouns swapped/i);
     expect(prompt).toMatch(/one relevant operational detail.*specific realistic capital uses/i);
     expect(prompt).toMatch(/select 2-4 useful facts.*naturally incorporate all of them/i);
     expect(prompt).toMatch(/researchFactsUsed/i);
@@ -190,6 +195,9 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/event-rental companies—rental inventory/i);
     expect(prompt).toMatch(/never claim revenue growth, profitability, employee count, contracts/i);
     expect(prompt).toMatch(/leave anything unverified out instead of guessing/i);
+    expect(prompt).toMatch(/125-225 words in most cases, without a rigid word cap/i);
+    expect(prompt).toMatch(/not as a mechanical email summary/i);
+    expect(prompt).toMatch(/do not append a signature/i);
   });
 
   it('uses the deterministic outreach objective rather than asking the model to select one', () => {

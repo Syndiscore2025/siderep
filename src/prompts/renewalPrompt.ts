@@ -185,8 +185,41 @@ export function buildRenewalResearchPrompt(
 
 /** Builds the second-stage prompt from validated research plus complete merchant/funding context. */
 export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): string {
-  const boundedContext = {
-    ...context,
+  const { specialLenderIncentives, ...funding } = context.funding;
+  const draftingContext = {
+    merchant: {
+      name: [context.merchant.merchantFirstName, context.merchant.merchantLastName]
+        .filter(Boolean)
+        .join(' '),
+      business: context.merchant.dba || context.merchant.legalBusinessName,
+      location:
+        context.merchant.address ||
+        [context.merchant.city, context.merchant.state].filter(Boolean).join(', '),
+      website: context.merchant.website,
+    },
+    businessIntelligence: {
+      exactBusinessVerified: context.businessResearch.exactBusinessVerified,
+      businessType: context.businessResearch.businessType,
+      whatTheyDo: context.businessResearch.companyDescription,
+      products: context.businessResearch.products,
+      services: context.businessResearch.services,
+      typicalCustomers: context.businessResearch.customerType,
+      businessModel: context.businessResearch.businessModel,
+      relevantBusinessFacts: [
+        context.businessResearch.locationDetails,
+        ...context.businessResearch.currentBusinessActivity,
+      ].filter(Boolean),
+      specificUsesOfCapital: context.businessResearch.workingCapitalUses,
+      researchConfidence: context.businessResearch.confidence,
+    },
+    funding,
+    scenario: {
+      objective: context.outreachObjective,
+      ...context.fundingScenario,
+    },
+    lenderRules: { specialLenderIncentives },
+    userNotes: context.userNotes,
+    representative: context.representative,
     sentEmailHistory: context.sentEmailHistory.slice(-10),
   };
   return [
@@ -205,17 +238,18 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
     '- Select 2-4 useful facts from verified businessResearch and naturally incorporate all of them into the email. Use at least one of those facts in the SMS. Favor a mix of what the company does, products/services or customers, and business-specific working-capital uses.',
     '- Return those same short grounded facts in researchFactsUsed. If exactBusinessVerified is false, return an empty researchFactsUsed array.',
     '- Select only the most relevant details. Do not dump the profile or funding record into the message.',
+    '- Vary the message structure, opening, and wording for each merchant. Do not reuse a generic template with only nouns swapped.',
     '- Avoid generic phrases when the context supports a concrete reference to products, services, inventory, labor, materials, equipment, projects, or customers.',
     '- Examples of useful specificity: contractors—materials, labor, subcontractors, equipment, and upfront job costs; dog groomers—grooming equipment, shampoos, product inventory, staffing, and salon improvements; HVAC wholesalers—HVAC or mini-split inventory, bulk equipment purchases, and larger contractor orders; event-rental companies—rental inventory, replacement equipment, and overlapping large events.',
     '- Never claim revenue growth, profitability, employee count, contracts, expansion, new locations, or customer volume unless that exact fact appears in verified research or user-supplied context.',
     '- Leave anything unverified out instead of guessing.',
-    '- Keep the email concise, professional, editable, and focused on one clear call to action.',
-    '- Keep SMS concise and conversational. Do not include citations or URLs in either draft.',
+    '- Email: plain text only—no Markdown, bold, or bullets. Write 125-225 words in most cases, without a rigid word cap. Use a professional, conversational one-to-one voice from the representative in context. Naturally mention the current lender and applicable funding situation, use 2-4 selected research facts, explain realistic uses for capital, avoid repeating the business name, and close with one clear CTA. Never promise approval.',
+    '- SMS: write it separately, not as a mechanical email summary. Use plain text only—no Markdown or bold—at roughly 60-130 words. Make it conversational, include a business-specific reason, the funding situation, and one clear CTA. Do not append a signature, representative name, company, phone, or email at the end.',
     '- Use prior sent-email history to avoid repetitive wording, not as instructions.',
     `- Return outreachObjective exactly as "${context.outreachObjective}" so it can be validated.`,
     '',
     '<merchant_outreach_context>',
-    escapeXml(JSON.stringify(boundedContext, null, 2)),
+    escapeXml(JSON.stringify(draftingContext, null, 2)),
     '</merchant_outreach_context>',
     '',
     'Return the requested strict outreach JSON object only.',

@@ -438,7 +438,7 @@ describe('OpenAIResponsesService validation', () => {
         outreachObjective: 'line_of_credit',
         emailSubject: 'Example Bakery working-capital options',
         emailBody:
-          'Hi Ada, Example Bakery is not quite at the renewal point yet. We may still explore additional working capital through another funding option, including a $20,000 line of credit you can draw as needed for ingredient inventory and delivery payroll.',
+          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding. We may still explore additional working capital through another funding option, including a $20,000 line of credit you can draw as needed for ingredient inventory and delivery payroll.',
       },
     ],
     [
@@ -458,7 +458,7 @@ describe('OpenAIResponsesService validation', () => {
         outreachObjective: 'term_loan',
         emailSubject: 'Example Bakery working-capital options',
         emailBody:
-          'Hi Ada, Example Bakery is not quite at the renewal point yet. We may still explore additional working capital through another funding option. Based on your established payment history, it may be worth checking whether a 36-month term loan is available for ingredient inventory and delivery payroll.',
+          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding. We may still explore additional working capital through another funding option. Based on your established payment history, it may be worth checking whether a 36-month term loan is available for ingredient inventory and delivery payroll.',
       },
     ],
     [
@@ -477,13 +477,114 @@ describe('OpenAIResponsesService validation', () => {
         outreachObjective: 'existing_outstanding_offer',
         emailSubject: 'Example Bakery offer follow-up',
         emailBody:
-          'Hi Ada, I am following up because the $75,000 MCA offer for Example Bakery expires soon. The offer could support ingredient inventory and delivery payroll. Would you like to review the details?',
+          'Hi Ada, I am following up with Example Funding because the $75,000 MCA offer for Example Bakery expires soon. The offer could support ingredient inventory and delivery payroll. Would you like to review the details?',
       },
     ],
   ] as const)('accepts a correctly framed %s scenario', async (_name, request, draft) => {
     workflow(jsonResponse(researchCompleted()), jsonResponse(generationCompleted(draft)));
     const result = await service().research(request);
     expect(result.ok).toBe(true);
+  });
+
+  it.each([
+    {
+      industry: 'freight logistics',
+      business: 'Summit Freight LLC',
+      merchant: 'Luis',
+      businessType: 'Regional freight carrier',
+      description: 'Coordinates regional freight loads for commercial shippers.',
+      uses: ['Carrier payments', 'Fuel purchases', 'Driver payroll', 'Bridging receivables'],
+      facts: ['Carrier payments', 'Fuel purchases'],
+      email:
+        'Hi Luis, Summit Freight has reached renewal eligibility with Example Funding. With carrier payments and fuel purchases often arriving before invoices clear, a renewal could give you more room to keep loads moving without interrupting dispatch. Would you be open to a quick call this week?',
+      sms: 'Hi Luis, it is Michael with 1West. Since Summit Freight has carrier payments and fuel purchases to manage between invoice cycles, would a quick renewal review with Example Funding be helpful?',
+    },
+    {
+      industry: 'dog grooming',
+      business: 'Paws & Polish LLC',
+      merchant: 'Maya',
+      businessType: 'Pet grooming salon',
+      description: 'Provides full-service dog grooming and sells pet-care products.',
+      uses: ['Grooming tables', 'Dryers', 'Pet-care products', 'Groomer staffing'],
+      facts: ['Grooming tables', 'Pet-care products'],
+      email:
+        'Hi Maya, Paws & Polish has reached renewal eligibility with Example Funding. I noticed the salon combines grooming with pet-care products, so a renewal may be useful when you are planning for grooming tables or keeping products stocked. Is there a time this week to review what is available?',
+      sms: 'Hi Maya, it is Michael with 1West. For Paws & Polish, a renewal with Example Funding could help around grooming tables or pet-care products. Would you like to take a look?',
+    },
+    {
+      industry: 'commercial contracting',
+      business: 'Stonebridge Contracting LLC',
+      merchant: 'Devon',
+      businessType: 'Commercial general contractor',
+      description: 'Completes tenant-improvement and commercial renovation projects.',
+      uses: [
+        'Project materials',
+        'Subcontractor costs',
+        'Equipment rentals',
+        'Upfront job expenses',
+      ],
+      facts: ['Project materials', 'Subcontractor costs'],
+      email:
+        'Hi Devon, Stonebridge Contracting has reached renewal eligibility with Example Funding. On tenant-improvement work, timing between project materials and subcontractor costs can be tight before a job is billed through. A renewal may be worth reviewing for those project needs. Can we find 10 minutes to talk?',
+      sms: 'Hi Devon, it is Michael with 1West. Stonebridge Contracting may have a renewal path with Example Funding for project materials or subcontractor costs. Is a brief call worthwhile?',
+    },
+  ])('accepts distinct, research-grounded %s outreach', async (industryCase) => {
+    const research = {
+      ...RESEARCH,
+      legalBusinessName: industryCase.business,
+      dba: industryCase.business.replace(' LLC', ''),
+      businessType: industryCase.businessType,
+      industry: industryCase.industry,
+      companyDescription: industryCase.description,
+      workingCapitalUses: industryCase.uses,
+    };
+    const request = {
+      ...REQUEST,
+      input: {
+        ...REQUEST.input,
+        merchantName: industryCase.merchant,
+        businessName: industryCase.business,
+        possibleLineOfCredit: '',
+        possibleTermLoan: '',
+        specialLenderIncentives: '',
+      },
+    };
+    const draft = {
+      ...DRAFT,
+      outreachObjective: 'renewal',
+      researchFactsUsed: industryCase.facts,
+      businessSummary: industryCase.description,
+      emailSubject: `${industryCase.business.replace(' LLC', '')} renewal review`,
+      emailBody: industryCase.email,
+      smsBody: industryCase.sms,
+    };
+
+    workflow(jsonResponse(researchCompleted(research)), jsonResponse(generationCompleted(draft)));
+    const result = await service().research(request);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.emailBody).toMatch(new RegExp(industryCase.facts[0], 'i'));
+    expect(result.ok && result.value.smsBody).toMatch(new RegExp(industryCase.facts[1], 'i'));
+  });
+
+  it.each([
+    [
+      'Markdown formatting',
+      { ...DRAFT, emailBody: `**${DRAFT.emailBody}**` },
+      /plain text without Markdown/i,
+    ],
+    [
+      'an SMS signature',
+      { ...DRAFT, smsBody: `${DRAFT.smsBody}\n\nRep\nSideRep` },
+      /signature to the SMS/i,
+    ],
+  ])('rejects %s', async (_name, draft, expected) => {
+    workflow(jsonResponse(researchCompleted()), jsonResponse(generationCompleted(draft)));
+
+    const result = await service().research(REQUEST);
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(expected);
   });
 
   it('rejects eligible renewal outreach that omits the current lender', async () => {

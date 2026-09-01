@@ -51,10 +51,11 @@ const FUNDING_DETAIL_FIELDS: Array<{
   { key: 'possibleTermLoan', label: 'Term loan opportunity', manual: true },
   {
     key: 'specialLenderIncentives',
-    label: 'Special notes / lender incentives',
+    label: 'Lender-specific rules / incentives',
     manual: true,
     wide: true,
   },
+  { key: 'userNotes', label: 'Rep notes / special instruction', manual: true, wide: true },
   { key: 'additionalSameDayLender', label: 'Additional same-day lender', manual: true },
 ];
 

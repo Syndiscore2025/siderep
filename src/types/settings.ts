@@ -29,8 +29,8 @@ export type AIVerbosity = (typeof AI_VERBOSITIES)[number];
 
 export const settingsSchema = z.object({
   repProfile: z.object({
-    name: z.string().trim().default(''),
-    company: z.string().trim().default(''),
+    name: z.string().trim().default('Michael'),
+    company: z.string().trim().default('1West'),
     phone: z.string().trim().default(''),
     email: z.string().trim().default(''),
   }),
@@ -76,7 +76,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 
 /** Fully-populated default configuration used on first run. */
 export const DEFAULT_SETTINGS: Settings = {
-  repProfile: { name: '', company: '', phone: '', email: '' },
+  repProfile: { name: 'Michael', company: '1West', phone: '', email: '' },
   renewalAI: { apiKey: '', model: 'gpt-5.6-sol' },
   assistantAI: { apiKey: '', model: 'gpt-4o-mini' },
   ai: {

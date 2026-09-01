@@ -281,6 +281,7 @@ export function mapRenewalFields(
         manual.existingOutstandingOffer,
         firstValue(fields, 'existingOutstandingOffer'),
       ),
+      userNotes: normalizeRenewalString(manual.userNotes),
       website,
     },
     warnings,

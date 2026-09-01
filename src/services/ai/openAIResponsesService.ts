@@ -472,6 +472,10 @@ function parseDraftContent(
   if (!draft.emailSubject || !draft.emailBody || !draft.smsBody) {
     return err(new Error('OpenAI returned an incomplete renewal draft.'));
   }
+  const markdown = /(?:\*\*|__|`|^\s*(?:#{1,6}\s|[-*+]\s|[0-9]+\.\s))/m;
+  if (markdown.test(draft.emailBody) || markdown.test(draft.smsBody)) {
+    return err(new Error('OpenAI output must use plain text without Markdown formatting.'));
+  }
   return ok(draft);
 }
 
@@ -757,6 +761,28 @@ function validatePersonalization(
       !includesAny(content.smsBody, identityAnchors))
   ) {
     return err(new Error('OpenAI output was not personalized to the supplied merchant identity.'));
+  }
+  if (
+    context.funding.currentLender &&
+    !includesAny(content.emailBody, [context.funding.currentLender])
+  ) {
+    return err(new Error('OpenAI omitted the supplied current lender from outreach.'));
+  }
+  const trailingSmsLines = content.smsBody
+    .split('\n')
+    .map((line) => comparable(line))
+    .filter(Boolean)
+    .slice(-3);
+  const signatureParts = [
+    context.representative.name,
+    context.representative.company,
+    context.representative.phone,
+    context.representative.email,
+  ]
+    .map(comparable)
+    .filter(Boolean);
+  if (signatureParts.some((part) => trailingSmsLines.includes(part))) {
+    return err(new Error('OpenAI appended a representative signature to the SMS.'));
   }
   const claims = validateRestrictedClaims(content, context);
   if (!claims.ok) return claims;
