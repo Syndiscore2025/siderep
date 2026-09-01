@@ -111,10 +111,19 @@ describe('OpenAIResponsesService request contract', () => {
           type: 'object',
           additionalProperties: false,
           properties: expect.objectContaining({
-            businessSummary: expect.objectContaining({ type: 'string' }),
+            businessSummary: expect.objectContaining({
+              type: 'string',
+              description: expect.stringMatching(/4-6 specific working-capital uses/i),
+            }),
             emailSubject: expect.objectContaining({ type: 'string' }),
-            emailBody: expect.objectContaining({ type: 'string' }),
-            smsBody: expect.objectContaining({ type: 'string' }),
+            emailBody: expect.objectContaining({
+              type: 'string',
+              description: expect.stringMatching(/only verified research.*business-specific/i),
+            }),
+            smsBody: expect.objectContaining({
+              type: 'string',
+              description: expect.stringMatching(/only verified research/i),
+            }),
           }),
           required: ['businessSummary', 'emailSubject', 'emailBody', 'smsBody'],
         },
