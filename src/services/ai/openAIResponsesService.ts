@@ -1,6 +1,7 @@
 import { buildRenewalGenerationPrompt, buildRenewalResearchPrompt } from '@/prompts';
 import { createSideRepAIConfig } from '@/services/ai/aiConfig';
 import { buildRenewalMerchantContext } from '@/services/renewal/merchantContext';
+import { resolveBusinessLocator } from '@/services/renewal/businessLocator';
 import { addressFromGoogleUrl } from '@/services/renewal/googleAddress';
 import type {
   RenewalBusinessResearch,
@@ -326,9 +327,13 @@ function verifyResearchIdentity(
 ): boolean {
   if (!research.exactBusinessVerified || !sources.length) return false;
   const input = request.input;
+  const locator = resolveBusinessLocator(input.businessLocator);
   const suppliedAddress =
-    input.businessAddress || addressFromGoogleUrl(input.businessAddressGoogleUrl);
-  const websiteMatch = Boolean(input.website && sameHost(input.website, research.website));
+    locator.businessAddress ||
+    input.businessAddress ||
+    addressFromGoogleUrl(locator.businessAddressGoogleUrl || input.businessAddressGoogleUrl);
+  const suppliedWebsite = locator.website || input.website;
+  const websiteMatch = Boolean(suppliedWebsite && sameHost(suppliedWebsite, research.website));
   const addressMatch = Boolean(
     suppliedAddress && research.address && valuesMatch(suppliedAddress, research.address),
   );
@@ -345,7 +350,7 @@ function verifyResearchIdentity(
   if (nameConflict || cityConflict || stateConflict) return false;
   const completeLocationMatch = Boolean(input.city && input.state && cityMatch && stateMatch);
   const googleAddressMatch = Boolean(
-    input.businessAddressGoogleUrl &&
+    (locator.businessAddressGoogleUrl || input.businessAddressGoogleUrl) &&
     nameMatch &&
     sources.some((source) => {
       const host = sourceHost(source.url);
@@ -524,7 +529,11 @@ function parseResearchResponse(
   if (!parsed.ok) return parsed;
   const content = parseResearchContent(parsed.value);
   if (!content.ok) return content;
-  const sources = rankSources(output.value.sources, request.input.website || content.value.website);
+  const locator = resolveBusinessLocator(request.input.businessLocator);
+  const sources = rankSources(
+    output.value.sources,
+    locator.website || request.input.website || content.value.website,
+  );
   const verified = verifyResearchIdentity(request, content.value, sources);
   const research = verified
     ? content.value

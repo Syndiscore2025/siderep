@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RenewalExtractionService } from '@/hooks/useRenewal';
 import { loadRenewalHistory, recordCopiedRenewalEmail } from '@/services';
 import type { RenewalResearchService } from '@/services';
-import type { ExtractedCustomer, RenewalDraft } from '@/types';
+import type { ExtractedCustomer, RenewalDraft, RenewalInput } from '@/types';
 import { ok } from '@/utils';
 import type { Result } from '@/utils';
 
@@ -74,6 +74,14 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function enterMinimumInput(edit: (field: keyof RenewalInput, value: string) => void): void {
+  edit('businessName', 'Acme');
+  edit('businessLocator', '42 Market Street, Denver, CO 80202');
+  edit('merchantName', 'Avery');
+  edit('latestLender', 'Example Capital');
+  edit('percentagePaid', '50%');
+}
+
 describe('useRenewal', () => {
   it('starts eligible, edits in memory, and reveals the optional lender on demand', () => {
     const { result } = renderHook(() => useRenewal(), { wrapper: createWrapper() });
@@ -118,7 +126,7 @@ describe('useRenewal', () => {
     expect(result.current.extractionStatus).toBe('success');
   });
 
-  it('validates identifying input before research', async () => {
+  it('requires the five minimum generation inputs before research', async () => {
     const research = vi.fn<RenewalResearchService['research']>();
     const { result } = renderHook(() => useRenewal(), {
       wrapper: createWrapper(emptyExtraction, researchService(research)),
@@ -127,35 +135,38 @@ describe('useRenewal', () => {
     await act(() => result.current.research());
 
     expect(research).not.toHaveBeenCalled();
-    expect(result.current.researchError).toMatch(/at least one merchant/i);
+    expect(result.current.researchError).toMatch(/business name.*paid-in percentage/i);
   });
 
-  it('allows address-only research and passes the address to the research service', async () => {
+  it('accepts the five minimum inputs and resolves an address locator for research', async () => {
     const research = vi.fn<RenewalResearchService['research']>(async () => ok(DRAFT));
     const { result } = renderHook(() => useRenewal(), {
       wrapper: createWrapper(emptyExtraction, researchService(research)),
     });
 
-    act(() => result.current.edit('businessAddress', '42 Market Street, Denver, CO 80202'));
+    act(() => enterMinimumInput(result.current.edit));
     await act(() => result.current.research());
 
     expect(research).toHaveBeenCalledTimes(1);
     expect(research.mock.calls[0][0].input).toMatchObject({
       businessAddress: '42 Market Street, Denver, CO 80202',
-      businessName: '',
+      businessName: 'Acme',
       website: '',
     });
     expect(result.current.researchPhase).toBe('complete');
     expect(result.current.draft).toEqual(DRAFT);
   });
 
-  it('allows research from only a Google business address link', async () => {
+  it('passes a Google Maps locator through the established Maps field', async () => {
     const research = vi.fn<RenewalResearchService['research']>(async () => ok(DRAFT));
     const { result } = renderHook(() => useRenewal(), {
       wrapper: createWrapper(emptyExtraction, researchService(research)),
     });
     const link = 'https://maps.app.goo.gl/AbCdEf123';
-    act(() => result.current.edit('businessAddressGoogleUrl', link));
+    act(() => {
+      enterMinimumInput(result.current.edit);
+      result.current.edit('businessLocator', link);
+    });
     await act(() => result.current.research());
     expect(research).toHaveBeenCalledTimes(1);
     expect(research.mock.calls[0][0].input.businessAddressGoogleUrl).toBe(link);
@@ -204,6 +215,7 @@ describe('useRenewal', () => {
     expect(result.current.input.merchantName).toBe('Newest');
 
     act(() => {
+      enterMinimumInput(result.current.edit);
       void result.current.research();
       void result.current.research();
     });
@@ -224,7 +236,7 @@ describe('useRenewal', () => {
     const { result } = renderHook(() => useRenewal(), {
       wrapper: createWrapper(emptyExtraction, researchService(research)),
     });
-    act(() => result.current.edit('businessName', 'In-memory only'));
+    act(() => enterMinimumInput(result.current.edit));
     act(() => void result.current.research());
     await waitFor(() => expect(result.current.researchPhase).toBe('researching'));
 
@@ -248,7 +260,7 @@ describe('useRenewal', () => {
     });
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     const { result } = renderHook(() => useRenewal(), { wrapper: createWrapper() });
-    act(() => result.current.edit('merchantName', 'Acme'));
+    act(() => enterMinimumInput(result.current.edit));
     await act(() => result.current.research());
     await act(() => result.current.copyEmail());
     await act(() => result.current.copyEmail());
@@ -266,7 +278,7 @@ describe('useRenewal', () => {
       value: { writeText: vi.fn(async () => Promise.reject(new Error('denied'))) },
     });
     const { result } = renderHook(() => useRenewal(), { wrapper: createWrapper() });
-    act(() => result.current.edit('businessName', 'Acme'));
+    act(() => enterMinimumInput(result.current.edit));
     await act(() => result.current.research());
     await act(() => result.current.copyEmail());
     expect((await loadRenewalHistory()).accounts).toEqual([]);
@@ -280,7 +292,7 @@ describe('useRenewal', () => {
     });
     vi.spyOn(chrome.storage.local, 'set').mockRejectedValue(new Error('quota exceeded'));
     const { result } = renderHook(() => useRenewal(), { wrapper: createWrapper() });
-    act(() => result.current.edit('businessName', 'Acme'));
+    act(() => enterMinimumInput(result.current.edit));
     await act(() => result.current.research());
     await act(() => result.current.copyEmail());
     expect(result.current.historyStatus).toEqual({
@@ -337,7 +349,10 @@ describe('useRenewal', () => {
       wrapper: createWrapper(emptyExtraction, researchService(research)),
     });
     await waitFor(() => expect(result.current.accountSearchResults).toHaveLength(1));
-    act(() => result.current.selectAccount(first.accountId));
+    act(() => {
+      result.current.selectAccount(first.accountId);
+      enterMinimumInput(result.current.edit);
+    });
     await act(() => result.current.research());
     expect(research.mock.calls[0][0].sentEmailHistory.map((email) => email.subject)).toEqual([
       'Subject earlier',

@@ -21,6 +21,7 @@ import {
   createExtractionService,
   createRenewalResearchService,
   mapRenewalFields,
+  resolveBusinessLocator,
   searchRenewalAccounts,
 } from '@/services';
 import type { ExtractionService, RenewalResearchService } from '@/services';
@@ -165,6 +166,17 @@ export function RenewalProvider({
 
   const edit = useCallback(
     (field: keyof RenewalInput, value: string) => {
+      if (field === 'businessLocator') {
+        const locator = resolveBusinessLocator(value);
+        setInput({
+          ...inputRef.current,
+          businessLocator: value,
+          businessAddress: locator.businessAddress,
+          businessAddressGoogleUrl: locator.businessAddressGoogleUrl,
+          website: locator.website,
+        });
+        return;
+      }
       setInput({ ...inputRef.current, [field]: value });
     },
     [setInput],
@@ -215,6 +227,7 @@ export function RenewalProvider({
         businessName: account.identity.businessName,
         accountName: account.identity.accountName,
         dba: account.identity.dba,
+        businessLocator: account.identity.website,
         website: account.identity.website,
       });
     },
@@ -265,21 +278,19 @@ export function RenewalProvider({
     researchAbort.current = null;
     const sequence = ++researchSequence.current;
     const currentInput = inputRef.current;
-    if (
-      ![
-        currentInput.merchantName,
-        currentInput.businessName,
-        currentInput.accountName,
-        currentInput.dba,
-        currentInput.businessAddress,
-        currentInput.businessAddressGoogleUrl,
-        currentInput.website,
-      ].some((value) => value.trim().length > 0)
-    ) {
+    const missingFields = [
+      ['business name', currentInput.businessName],
+      [
+        'business website, Google Maps link, or address',
+        resolveBusinessLocator(currentInput.businessLocator).locator,
+      ],
+      ['merchant first name', currentInput.merchantName],
+      ['current lender', currentInput.latestLender],
+      ['paid-in percentage', currentInput.percentagePaid],
+    ].flatMap(([label, value]) => (value.trim() ? [] : [label]));
+    if (missingFields.length) {
       setResearchPhase('error');
-      setResearchError(
-        'Enter at least one merchant, business, account, DBA, address, Google address link, or website value.',
-      );
+      setResearchError(`Add the required details: ${missingFields.join(', ')}.`);
       return;
     }
     if (!researchService.isConfigured()) {
@@ -395,6 +406,7 @@ export function RenewalProvider({
         businessName: selectedAccount.identity.businessName,
         accountName: selectedAccount.identity.accountName,
         dba: selectedAccount.identity.dba,
+        businessLocator: selectedAccount.identity.website,
         website: selectedAccount.identity.website,
       });
       setHistoryStatus({ kind: 'success', message: 'Renewal cycle archived.' });

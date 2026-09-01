@@ -50,6 +50,25 @@ function renderPage(research: RenewalResearchService = researchService) {
   );
 }
 
+function enterMinimumInput(): void {
+  fireEvent.change(screen.getByRole('textbox', { name: 'Business name' }), {
+    target: { value: 'Acme' },
+  });
+  fireEvent.change(
+    screen.getByRole('textbox', { name: 'Business Website / Google Maps / Address' }),
+    {
+      target: { value: '42 Market Street, Denver, CO 80202' },
+    },
+  );
+  fireEvent.change(screen.getByRole('textbox', { name: 'Merchant first name' }), {
+    target: { value: 'Avery' },
+  });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Current lender' }), {
+    target: { value: 'Example Capital' },
+  });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Paid in' }), { target: { value: '50%' } });
+}
+
 describe('RenewalPage', () => {
   it('is the default five-tab view and retains state across tab switches', () => {
     render(<App />, { wrapper: QueryWrapper });
@@ -60,25 +79,27 @@ describe('RenewalPage', () => {
       'page',
     );
     expect(screen.getByRole('heading', { name: 'Renewal outreach' })).toBeInTheDocument();
-    const googleAddress = screen.getByRole('textbox', { name: 'Google business address link' });
-    expect(googleAddress.closest('label')?.parentElement).toHaveClass('sm:col-span-2');
+    const locator = screen.getByRole('textbox', {
+      name: 'Business Website / Google Maps / Address',
+    });
+    expect(locator.closest('label')?.parentElement).toHaveClass('sm:col-span-2');
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Merchant name' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Merchant first name' }), {
       target: { value: 'Persistent Merchant' },
     });
     fireEvent.click(within(navigation).getByRole('button', { name: 'Assistant' }));
     fireEvent.click(within(navigation).getByRole('button', { name: 'Renewal' }));
 
-    expect(screen.getByRole('textbox', { name: 'Merchant name' })).toHaveValue(
+    expect(screen.getByRole('textbox', { name: 'Merchant first name' })).toHaveValue(
       'Persistent Merchant',
     );
   });
 
-  it('provides accessible eligibility and optional lender controls with manual fallback guidance', async () => {
+  it('keeps funding details optional while retaining eligibility and manual fallback guidance', async () => {
     renderPage();
-    expect(
-      screen.queryByRole('textbox', { name: 'Additional same-day lender' }),
-    ).not.toBeInTheDocument();
+    const fundingDetails = screen.getByText('+ Add Funding Details').closest('details');
+    expect(fundingDetails).not.toHaveAttribute('open');
+    expect(screen.getByRole('textbox', { name: 'Additional same-day lender' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Eligible' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -88,9 +109,6 @@ describe('RenewalPage', () => {
       'aria-pressed',
       'true',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Add same-day lender' }));
-    expect(screen.getByRole('textbox', { name: 'Additional same-day lender' })).toBeInTheDocument();
-
     const failingExtraction: RenewalExtractionService = {
       extractActiveCustomer: vi.fn(async () => ({
         ok: false,
@@ -113,9 +131,7 @@ describe('RenewalPage', () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     renderPage();
-    fireEvent.change(screen.getByRole('textbox', { name: 'Business name' }), {
-      target: { value: 'Acme' },
-    });
+    enterMinimumInput();
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
 
     expect(await screen.findByText(DRAFT.businessSummary)).toBeInTheDocument();
@@ -161,9 +177,7 @@ describe('RenewalPage', () => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     renderPage(sourceFreeResearch);
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Business address' }), {
-      target: { value: '42 Market Street, Denver, CO 80202' },
-    });
+    enterMinimumInput();
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
 
     expect(await screen.findByText(/no verified web source was returned/i)).toBeInTheDocument();
@@ -181,7 +195,7 @@ describe('RenewalPage', () => {
       value: { writeText: vi.fn(async () => Promise.reject(new Error('denied'))) },
     });
     renderPage();
-    fireEvent.change(screen.getByRole('textbox', { name: 'DBA' }), { target: { value: 'Acme' } });
+    enterMinimumInput();
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
     await screen.findByText(DRAFT.businessSummary);
     fireEvent.click(screen.getByRole('button', { name: 'Copy Subject' }));
@@ -218,8 +232,12 @@ describe('RenewalPage', () => {
     await screen.findByRole('option', { name: /Saved Merchant/i });
     fireEvent.keyDown(combobox, { key: 'Enter' });
 
-    expect(screen.getByRole('textbox', { name: 'Merchant name' })).toHaveValue('Saved Merchant');
-    expect(screen.getByRole('textbox', { name: 'Account name' })).toHaveValue('Saved Account');
+    expect(screen.getByRole('textbox', { name: 'Merchant first name' })).toHaveValue(
+      'Saved Merchant',
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Business Website / Google Maps / Address' }),
+    ).toHaveValue('https://saved.example/');
     expect(screen.getByRole('textbox', { name: 'Current balance' })).toHaveValue('');
     expect(screen.getByRole('combobox', { name: 'Outreach type' })).toHaveValue('add_on');
     expect(screen.getByRole('combobox', { name: 'Outreach type' })).toBeDisabled();

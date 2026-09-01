@@ -1,6 +1,7 @@
 import { EMPTY_RENEWAL_INPUT } from '@/types';
 import type { CustomerField, ExtractedCustomer, RenewalInput } from '@/types';
 
+import { resolveBusinessLocator } from '../renewal/businessLocator';
 import { addressFromGoogleUrl, normalizeGoogleAddressUrl } from '../renewal/googleAddress';
 
 export const MAX_RENEWAL_STRING_LENGTH = 500;
@@ -194,21 +195,27 @@ export function mapRenewalFields(
     );
   }
 
+  const manualLocator = resolveBusinessLocator(manual.businessLocator);
   const crawledWebsite = firstValue(fields, 'website');
-  const website = crawledWebsite
-    ? (normalizeRenewalUrl(crawledWebsite) ??
-      normalizeRenewalUrl(manual.website) ??
-      normalizeRenewalString(manual.website))
-    : (normalizeRenewalUrl(manual.website) ?? normalizeRenewalString(manual.website));
+  const website =
+    manualLocator.website ||
+    (crawledWebsite
+      ? (normalizeRenewalUrl(crawledWebsite) ??
+        normalizeRenewalUrl(manual.website) ??
+        normalizeRenewalString(manual.website))
+      : (normalizeRenewalUrl(manual.website) ?? normalizeRenewalString(manual.website)));
   const crawledAddressRaw = firstRawValue(fields, 'businessAddress');
-  const manualAddress = normalizeRenewalString(manual.businessAddress);
+  const manualAddress =
+    manualLocator.businessAddress || normalizeRenewalString(manual.businessAddress);
   const googleAddressUrl =
-    normalizeGoogleAddressUrl(firstRawValue(fields, 'businessAddressGoogleUrl')) ??
-    normalizeGoogleAddressUrl(crawledAddressRaw) ??
-    normalizeGoogleAddressUrl(manual.businessAddressGoogleUrl) ??
-    normalizeGoogleAddressUrl(manualAddress) ??
-    '';
+    manualLocator.businessAddressGoogleUrl ||
+    (normalizeGoogleAddressUrl(firstRawValue(fields, 'businessAddressGoogleUrl')) ??
+      normalizeGoogleAddressUrl(crawledAddressRaw) ??
+      normalizeGoogleAddressUrl(manual.businessAddressGoogleUrl) ??
+      normalizeGoogleAddressUrl(manualAddress) ??
+      '');
   const businessAddress =
+    manualLocator.businessAddress ||
     (normalizeGoogleAddressUrl(crawledAddressRaw)
       ? ''
       : normalizeRenewalString(crawledAddressRaw)) ||
@@ -228,6 +235,7 @@ export function mapRenewalFields(
         manual.merchantName,
       ),
       businessName: prefer(firstValue(fields, 'businessName'), manual.businessName),
+      businessLocator: manualLocator.locator || googleAddressUrl || website || businessAddress,
       accountName: prefer(firstValue(fields, 'accountName'), manual.accountName),
       dba: prefer(firstValue(fields, 'dba'), manual.dba),
       businessAddress,

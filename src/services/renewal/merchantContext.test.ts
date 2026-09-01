@@ -148,6 +148,24 @@ describe('buildRenewalMerchantContext', () => {
     });
   });
 
+  it('uses the universal locator to populate website and address context', () => {
+    const websiteContext = buildRenewalMerchantContext(
+      request({ businessLocator: 'acme.example' }),
+      RESEARCH,
+    );
+    const addressContext = buildRenewalMerchantContext(
+      request({ businessLocator: '42 Market Street, Denver, CO 80202' }),
+      RESEARCH,
+    );
+
+    expect(websiteContext.merchant.website).toBe('https://acme.example/');
+    expect(addressContext.merchant).toMatchObject({
+      address: '42 Market Street, Denver, CO 80202',
+      city: 'Denver',
+      state: 'CO',
+    });
+  });
+
   it('sets scenario permission flags only from supplied funding facts', () => {
     const context = buildRenewalMerchantContext(
       request({

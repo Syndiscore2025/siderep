@@ -6,6 +6,7 @@ import type {
 } from '@/types';
 
 import { addressFromGoogleUrl, normalizeGoogleAddressUrl } from './googleAddress';
+import { resolveBusinessLocator } from './businessLocator';
 
 function splitMerchantName(value: string): { firstName: string; lastName: string } {
   const parts = value.trim().split(/\s+/).filter(Boolean);
@@ -99,8 +100,15 @@ export function buildRenewalMerchantContext(
   businessResearch: RenewalBusinessResearch,
 ): RenewalMerchantContext {
   const name = splitMerchantName(request.input.merchantName);
-  const googleAddressUrl = normalizeGoogleAddressUrl(request.input.businessAddressGoogleUrl) ?? '';
-  const businessAddress = request.input.businessAddress || addressFromGoogleUrl(googleAddressUrl);
+  const locator = resolveBusinessLocator(request.input.businessLocator);
+  const googleAddressUrl =
+    locator.businessAddressGoogleUrl ||
+    normalizeGoogleAddressUrl(request.input.businessAddressGoogleUrl) ||
+    '';
+  const businessAddress =
+    locator.businessAddress ||
+    request.input.businessAddress ||
+    addressFromGoogleUrl(googleAddressUrl);
   const address = addressParts(businessAddress);
   const positions = [request.input.existingPositions, request.input.additionalSameDayLender]
     .map((value) => value.trim())
@@ -116,7 +124,7 @@ export function buildRenewalMerchantContext(
       googleAddressUrl,
       city: request.input.city || address.city,
       state: request.input.state || address.state,
-      website: request.input.website,
+      website: locator.website || request.input.website,
       industry: request.input.industry || businessResearch.industry,
     },
     businessResearch,

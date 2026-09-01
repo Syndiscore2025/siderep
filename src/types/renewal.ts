@@ -15,6 +15,7 @@ export type RenewalFundingScenario =
 export interface RenewalInput {
   merchantName: string;
   businessName: string;
+  businessLocator: string;
   accountName: string;
   dba: string;
   businessAddress: string;
@@ -176,6 +177,7 @@ export interface RenewalResearchRequest {
 export const EMPTY_RENEWAL_INPUT: RenewalInput = {
   merchantName: '',
   businessName: '',
+  businessLocator: '',
   accountName: '',
   dba: '',
   businessAddress: '',

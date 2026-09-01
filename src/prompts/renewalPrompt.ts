@@ -9,6 +9,7 @@ export type RenewalPromptInput = RenewalResearchRequest;
 const RESEARCH_INPUT_LABELS = {
   merchantName: 'Merchant name',
   businessName: 'Legal business name',
+  businessLocator: 'Business website, Google Maps link, or address',
   accountName: 'Account name',
   dba: 'DBA',
   businessAddress: 'Business address',
@@ -137,7 +138,7 @@ export function buildRenewalResearchPrompt(
     '',
     'BUSINESS SEARCH LOGIC:',
     '1. IDENTIFY THE EXACT BUSINESS',
-    '- Use every supplied identity field: legal business name, account name, DBA/business name, full business address, website, and merchant/contact name.',
+    '- Use every supplied identity field: legal business name, account name, DBA/business name, the universal business locator, full business address, website, and merchant/contact name.',
     '- Parse the full address into street, city, state, and ZIP/postal code when those parts are present.',
     '- Search combinations including business name + city + state, business name + full address, and business name + owner/contact name.',
     '- Search the provided website directly. Also search Google Maps, Google Business Profile, and reputable business listings when available.',

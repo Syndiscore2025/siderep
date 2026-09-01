@@ -169,6 +169,21 @@ describe('mapRenewalFields', () => {
     const result = mapRenewalFields(customer([['Business Address', link]]));
     expect(result.input.businessAddressGoogleUrl).toContain('google.com/maps/search');
     expect(result.input.businessAddress).toBe('42 Market Street, Denver, CO 80202');
+    expect(result.input.businessLocator).toContain('google.com/maps/search');
+  });
+
+  it('maps a manually entered universal locator into the preserved address fields', () => {
+    const result = mapRenewalFields(customer([]), {
+      ...EMPTY_RENEWAL_INPUT,
+      businessLocator: '2200 S Main Street, Lombard, IL 60148',
+    });
+
+    expect(result.input).toMatchObject({
+      businessLocator: '2200 S Main Street, Lombard, IL 60148',
+      businessAddress: '2200 S Main Street, Lombard, IL 60148',
+      businessAddressGoogleUrl: '',
+      website: '',
+    });
   });
 
   it('retains shortened Google Maps links for the research stage', () => {
