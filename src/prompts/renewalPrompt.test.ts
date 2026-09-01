@@ -14,6 +14,7 @@ const RESEARCH: RenewalBusinessResearch = {
   city: 'Albany',
   state: 'NY',
   website: 'https://acme.example',
+  businessType: 'Commercial bakery',
   industry: 'Commercial bakery',
   companyDescription: 'Produces baked goods for local restaurants.',
   products: ['Bread', 'Pastries'],
@@ -22,7 +23,12 @@ const RESEARCH: RenewalBusinessResearch = {
   businessModel: 'Wholesale and storefront retail',
   locationDetails: 'Albany storefront and production kitchen',
   currentBusinessActivity: ['Expanded wholesale delivery'],
-  workingCapitalUses: ['Ingredient inventory', 'Bakery equipment', 'Delivery payroll'],
+  workingCapitalUses: [
+    'Ingredient inventory',
+    'Bakery equipment',
+    'Delivery payroll',
+    'Wholesale packaging',
+  ],
   confidence: 'high',
 };
 
@@ -136,7 +142,9 @@ describe('buildRenewalPrompt', () => {
   it('derives specific capital uses and includes only verified current context', () => {
     const prompt = buildRenewalResearchPrompt(renewal());
     expect(prompt).toMatch(/derive 4-6 realistic, business-specific uses/i);
+    expect(prompt).toMatch(/freight\/logistics—carrier payments, payroll, fuel/i);
     expect(prompt).toMatch(/contractors—materials, labor, subcontractors, equipment/i);
+    expect(prompt).toMatch(/dog grooming—grooming equipment, dryers and tables/i);
     expect(prompt).toMatch(/restaurants\/cafes—food inventory, equipment, payroll, catering/i);
     expect(prompt).toMatch(/do not use generic benefits/i);
     expect(prompt).toMatch(/expansion, new locations, relocation, new services, seasonal demand/i);

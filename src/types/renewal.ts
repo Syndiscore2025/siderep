@@ -47,6 +47,7 @@ export interface RenewalBusinessResearch {
   city: string;
   state: string;
   website: string;
+  businessType: string;
   industry: string;
   companyDescription: string;
   products: string[];
@@ -119,6 +120,9 @@ export interface RenewalDraft {
   emailSubject: string;
   emailBody: string;
   smsBody: string;
+  /** Retained in memory for the generated draft; never written to Renewal history. */
+  researchContext?: RenewalMerchantContext;
+  researchFactsUsed?: string[];
 }
 
 export interface RenewalSentEmailRecord {

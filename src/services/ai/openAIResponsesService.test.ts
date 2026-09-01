@@ -45,6 +45,7 @@ const RESEARCH: RenewalBusinessResearch = {
   city: 'Albany',
   state: 'NY',
   website: 'https://example.com',
+  businessType: 'Wholesale bakery',
   industry: 'Wholesale bakery',
   companyDescription: 'Produces baked goods for local restaurants and retail customers.',
   products: ['Bread', 'Pastries'],
@@ -53,7 +54,12 @@ const RESEARCH: RenewalBusinessResearch = {
   businessModel: 'Wholesale and storefront retail',
   locationDetails: 'Albany storefront and production kitchen',
   currentBusinessActivity: ['Expanded wholesale delivery'],
-  workingCapitalUses: ['Ingredient inventory', 'Bakery equipment', 'Delivery payroll'],
+  workingCapitalUses: [
+    'Ingredient inventory',
+    'Bakery equipment',
+    'Delivery payroll',
+    'Wholesale packaging',
+  ],
   confidence: 'high',
 };
 const DRAFT = {
@@ -147,6 +153,8 @@ describe('OpenAIResponsesService two-stage contract', () => {
       },
     });
     const context = buildRenewalMerchantContext(REQUEST, RESEARCH);
+    expect(result.ok && result.value.researchContext).toEqual(context);
+    expect(result.ok && result.value.researchFactsUsed).toEqual(DRAFT.researchFactsUsed);
     const generationBody = JSON.parse(String(fetchSpy.mock.calls[1][1]?.body));
     expect(generationBody).toMatchObject({
       model: 'gpt-5-mini',
@@ -343,6 +351,23 @@ describe('OpenAIResponsesService validation', () => {
     const result = await service().research(REQUEST);
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.message).toMatch(/before the exact merchant was verified/i);
+  });
+
+  it('rejects a verified profile without four specific working-capital uses before drafting', async () => {
+    const fetchSpy = workflow(
+      jsonResponse(
+        researchCompleted({
+          ...RESEARCH,
+          workingCapitalUses: RESEARCH.workingCapitalUses.slice(0, 3),
+        }),
+      ),
+    );
+
+    const result = await service().research(REQUEST);
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/4-6 specific working-capital uses/i);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it('rejects conflicting identity data even when the website domain matches', async () => {

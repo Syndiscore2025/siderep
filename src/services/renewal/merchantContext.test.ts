@@ -13,6 +13,7 @@ const RESEARCH: RenewalBusinessResearch = {
   city: 'Denver',
   state: 'CO',
   website: 'https://acme.example',
+  businessType: 'Commercial HVAC contractor',
   industry: 'Commercial HVAC',
   companyDescription: 'Installs and services commercial HVAC systems.',
   products: ['HVAC equipment', 'Replacement parts'],
@@ -21,7 +22,12 @@ const RESEARCH: RenewalBusinessResearch = {
   businessModel: 'Project and service based',
   locationDetails: 'One Denver service location',
   currentBusinessActivity: ['Hiring technicians'],
-  workingCapitalUses: ['Equipment purchases', 'Technician payroll', 'Installation materials'],
+  workingCapitalUses: [
+    'Equipment purchases',
+    'Technician payroll',
+    'Installation materials',
+    'Service vehicles',
+  ],
   confidence: 'high',
 };
 

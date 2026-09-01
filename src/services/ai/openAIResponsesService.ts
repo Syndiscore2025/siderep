@@ -28,6 +28,7 @@ const RESEARCH_KEYS = [
   'city',
   'state',
   'website',
+  'businessType',
   'industry',
   'companyDescription',
   'products',
@@ -50,6 +51,7 @@ const RESEARCH_SCHEMA = {
     city: { type: 'string', maxLength: 200 },
     state: { type: 'string', maxLength: 100 },
     website: { type: 'string', maxLength: 2_048 },
+    businessType: { type: 'string', maxLength: 500 },
     industry: { type: 'string', maxLength: 300 },
     companyDescription: { type: 'string', maxLength: 1_200 },
     products: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 300 } },
@@ -379,6 +381,7 @@ function parseResearchContent(value: unknown): Result<RenewalBusinessResearch> {
     'city',
     'state',
     'website',
+    'businessType',
     'industry',
     'companyDescription',
     'customerType',
@@ -399,7 +402,36 @@ function parseResearchContent(value: unknown): Result<RenewalBusinessResearch> {
   if (value.website && !normalizeSource({ url: value.website })) {
     return err(new Error('OpenAI business research contained an unsafe website.'));
   }
+  if (value.exactBusinessVerified && value.workingCapitalUses.length < 4) {
+    return err(
+      new Error('Verified business research must include 4-6 specific working-capital uses.'),
+    );
+  }
   return ok(value as unknown as RenewalBusinessResearch);
+}
+
+function omitUnverifiedResearch(research: RenewalBusinessResearch): RenewalBusinessResearch {
+  return {
+    ...research,
+    exactBusinessVerified: false,
+    legalBusinessName: '',
+    dba: '',
+    address: '',
+    city: '',
+    state: '',
+    website: '',
+    businessType: '',
+    industry: '',
+    companyDescription: '',
+    products: [],
+    services: [],
+    customerType: '',
+    businessModel: '',
+    locationDetails: '',
+    currentBusinessActivity: [],
+    workingCapitalUses: [],
+    confidence: 'low',
+  };
 }
 
 function parseDraftContent(
@@ -535,9 +567,7 @@ function parseResearchResponse(
     locator.website || request.input.website || content.value.website,
   );
   const verified = verifyResearchIdentity(request, content.value, sources);
-  const research = verified
-    ? content.value
-    : { ...content.value, exactBusinessVerified: false, confidence: 'low' as const };
+  const research = verified ? content.value : omitUnverifiedResearch(content.value);
   return ok({ research, sources });
 }
 
@@ -767,6 +797,7 @@ function validatePersonalization(
     return err(new Error('OpenAI did not select 2-4 distinct verified business facts.'));
   }
   const researchCorpus = [
+    context.businessResearch.businessType,
     context.businessResearch.industry,
     context.businessResearch.companyDescription,
     ...context.businessResearch.products,
@@ -806,10 +837,16 @@ function parseGenerationResponse(
   if (!content.ok) return content;
   const personalized = validatePersonalization(content.value, context);
   if (!personalized.ok) return personalized;
-  const { outreachObjective: _objective, researchFactsUsed: _facts, ...draft } = personalized.value;
-  const businessSummary =
-    sources.length && context.businessResearch.exactBusinessVerified ? draft.businessSummary : '';
-  return ok({ ...draft, businessSummary, sources });
+  const { outreachObjective: _objective, researchFactsUsed, ...draft } = personalized.value;
+  const verifiedSources = context.businessResearch.exactBusinessVerified ? sources : [];
+  const businessSummary = verifiedSources.length ? draft.businessSummary : '';
+  return ok({
+    ...draft,
+    businessSummary,
+    sources: verifiedSources,
+    researchContext: context,
+    researchFactsUsed,
+  });
 }
 
 export class OpenAIResponsesService implements RenewalResearchService {
