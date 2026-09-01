@@ -271,11 +271,14 @@ export function RenewalProvider({
         currentInput.businessName,
         currentInput.accountName,
         currentInput.dba,
+        currentInput.businessAddress,
         currentInput.website,
       ].some((value) => value.trim().length > 0)
     ) {
       setResearchPhase('error');
-      setResearchError('Enter at least one merchant, business, account, DBA, or website value.');
+      setResearchError(
+        'Enter at least one merchant, business, account, DBA, address, or website value.',
+      );
       return;
     }
     if (!researchService.isConfigured()) {

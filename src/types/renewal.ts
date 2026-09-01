@@ -6,6 +6,7 @@ export interface RenewalInput {
   businessName: string;
   accountName: string;
   dba: string;
+  businessAddress: string;
   currentBalance: string;
   percentagePaid: string;
   latestLender: string;
@@ -91,6 +92,7 @@ export const EMPTY_RENEWAL_INPUT: RenewalInput = {
   businessName: '',
   accountName: '',
   dba: '',
+  businessAddress: '',
   currentBalance: '',
   percentagePaid: '',
   latestLender: '',

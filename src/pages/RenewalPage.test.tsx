@@ -39,11 +39,11 @@ function QueryWrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-function renderPage() {
+function renderPage(research: RenewalResearchService = researchService) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <RenewalProvider extractionService={extractionService} researchService={researchService}>
+      <RenewalProvider extractionService={extractionService} researchService={research}>
         <RenewalPage />
       </RenewalProvider>
     </QueryClientProvider>,
@@ -132,6 +132,30 @@ describe('RenewalPage', () => {
     expect(screen.getByRole('heading', { name: 'Current cycle' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Copy Text' }));
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(DRAFT.smsBody));
+  });
+
+  it('keeps source-free drafts copy-ready and warns that no verified source was returned', async () => {
+    const sourceFreeDraft = { ...DRAFT, businessSummary: '', sources: [] };
+    const sourceFreeResearch: RenewalResearchService = {
+      isConfigured: () => true,
+      research: vi.fn(async () => ok(sourceFreeDraft)),
+    };
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    renderPage(sourceFreeResearch);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Business address' }), {
+      target: { value: '42 Market Street, Denver, CO 80202' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
+
+    expect(await screen.findByText(/no verified web source was returned/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Sources' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Email body' })).toHaveValue(DRAFT.emailBody);
+    expect(screen.getByRole('textbox', { name: 'SMS text' })).toHaveValue(DRAFT.smsBody);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Text' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(DRAFT.smsBody));
   });
 
   it('announces clipboard failure while leaving generated text selectable', async () => {

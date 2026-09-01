@@ -52,6 +52,7 @@ describe('mapRenewalFields', () => {
         businessName: '',
         accountName: '',
         dba: 'Manual DBA',
+        businessAddress: '123 Manual Street',
         currentBalance: '$12,500',
         percentagePaid: '',
         latestLender: '',
@@ -63,6 +64,7 @@ describe('mapRenewalFields', () => {
     expect(result.input.businessName).toBe('Higher priority');
     expect(result.input.merchantName).toBe('Manual merchant');
     expect(result.input.dba).toBe('Manual DBA');
+    expect(result.input.businessAddress).toBe('123 Manual Street');
     expect(result.input.currentBalance).toBe('$12,500');
   });
 
@@ -116,5 +118,16 @@ describe('mapRenewalFields', () => {
     expect(result.input.website).toBe('https://merchant.example/path');
     expect(result.input.currentBalance).toBe('$8,500');
     expect(result.input.percentagePaid).toBe('64%');
+  });
+
+  it('maps a Salesforce business address for research disambiguation', () => {
+    const result = mapRenewalFields(
+      customer([
+        ['Business Name', 'Acme Market'],
+        ['Business Address', '42 Market Street, Denver, CO 80202'],
+      ]),
+    );
+
+    expect(result.input.businessAddress).toBe('42 Market Street, Denver, CO 80202');
   });
 });

@@ -23,6 +23,12 @@ const FIELDS: Array<{
   { key: 'businessName', label: 'Business name' },
   { key: 'accountName', label: 'Account name' },
   { key: 'dba', label: 'DBA' },
+  {
+    key: 'businessAddress',
+    label: 'Business address',
+    placeholder: 'Street, city, state, ZIP',
+    manual: true,
+  },
   { key: 'website', label: 'Website', placeholder: 'https://…', type: 'url' },
   { key: 'currentBalance', label: 'Current balance', manual: true },
   { key: 'percentagePaid', label: 'Percentage paid', manual: true },
@@ -43,8 +49,7 @@ export function RenewalInputCard() {
     <Card title="Renewal details" icon={<SparklesIcon className="size-3.5" />}>
       <div className="space-y-3">
         <p className="text-xs text-content-secondary">
-          All fields are optional, but enter at least one merchant, business, account, DBA, or
-          website value.
+          Enter a business name and address or website for the most accurate web research.
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
