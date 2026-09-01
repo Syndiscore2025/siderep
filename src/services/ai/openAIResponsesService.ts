@@ -17,7 +17,8 @@ const DRAFT_SCHEMA = {
     businessSummary: {
       type: 'string',
       maxLength: 1_200,
-      description: 'A concise, sourced business summary without citations or URLs.',
+      description:
+        'A concise sourced internal profile covering business, location, type, offerings, 4-6 specific working-capital uses, notable verified context, and High/Medium/Low confidence; no citations or URLs.',
     },
     emailSubject: {
       type: 'string',
@@ -27,12 +28,14 @@ const DRAFT_SCHEMA = {
     emailBody: {
       type: 'string',
       maxLength: 4_000,
-      description: 'A copy-ready email without citations or URLs.',
+      description:
+        'A copy-ready email tailored with only verified research or explicitly supplied merchant details and business-specific capital uses; no citations or URLs.',
     },
     smsBody: {
       type: 'string',
       maxLength: 500,
-      description: 'A concise, copy-ready SMS without URLs.',
+      description:
+        'A concise, copy-ready SMS tailored with only verified research or explicitly supplied merchant details; no URLs.',
     },
   },
   required: DRAFT_KEYS,
