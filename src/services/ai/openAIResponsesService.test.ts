@@ -58,11 +58,13 @@ const RESEARCH: RenewalBusinessResearch = {
 };
 const DRAFT = {
   outreachObjective: 'renewal_plus_alternative_options',
+  researchFactsUsed: ['Ingredient inventory', 'Delivery payroll'],
   businessSummary: 'Example Bakery produces baked goods for local restaurants.',
   emailSubject: 'Example Bakery renewal options',
   emailBody:
     'Hi Ada, your bakery could use added flexibility for ingredient inventory and delivery payroll. Would you have time to review renewal and line-of-credit options?',
-  smsBody: 'Hi Ada, can we review renewal and line-of-credit options for Example Bakery?',
+  smsBody:
+    "Hi Ada, can we review renewal options for Example Bakery's ingredient inventory and delivery needs?",
 };
 
 function jsonResponse(body: unknown, status = 200, headers?: HeadersInit): Response {
@@ -144,6 +146,7 @@ describe('OpenAIResponsesService two-stage contract', () => {
     expect(generationBody).not.toHaveProperty('tool_choice');
     expect(generationBody.text.format.schema.required).toEqual([
       'outreachObjective',
+      'researchFactsUsed',
       'businessSummary',
       'emailSubject',
       'emailBody',
@@ -188,7 +191,10 @@ describe('OpenAIResponsesService validation', () => {
   });
 
   it('still generates from supplied context after a search with no safe source', async () => {
-    workflow(jsonResponse(researchCompleted(RESEARCH, [{ url: 'javascript:alert(1)' }])));
+    workflow(
+      jsonResponse(researchCompleted(RESEARCH, [{ url: 'javascript:alert(1)' }])),
+      jsonResponse(generationCompleted({ ...DRAFT, researchFactsUsed: [] })),
+    );
     const result = await service().research(REQUEST);
     expect(result.ok && result.value.sources).toEqual([]);
     expect(result.ok && result.value.businessSummary).toBe('');
@@ -204,6 +210,76 @@ describe('OpenAIResponsesService validation', () => {
     );
     const result = await service().research(REQUEST);
     expect(!result.ok && result.error.message).toMatch(/required web research/i);
+  });
+
+  it('ranks official, Google, social, LinkedIn, BBB, then directory sources', async () => {
+    workflow(
+      jsonResponse(
+        researchCompleted(RESEARCH, [
+          { type: 'url', url: 'https://directory.example/listing', title: 'Directory' },
+          { type: 'url', url: 'https://bbb.org/profile', title: 'BBB' },
+          { type: 'url', url: 'https://linkedin.com/company/example', title: 'LinkedIn' },
+          { type: 'url', url: 'https://instagram.com/example', title: 'Instagram' },
+          { type: 'url', url: 'https://google.com/maps/place/example', title: 'Google' },
+          { type: 'url', url: 'https://example.com/about', title: 'Official' },
+        ]),
+      ),
+    );
+    const result = await service().research(REQUEST);
+    expect(result.ok && result.value.sources.map((source) => source.title)).toEqual([
+      'Official',
+      'Google',
+      'Instagram',
+      'LinkedIn',
+      'BBB',
+      'Directory',
+    ]);
+  });
+
+  it('does not use research from a similarly named business in another location', async () => {
+    const wrongBusiness: RenewalBusinessResearch = {
+      ...RESEARCH,
+      address: '900 Sunset Boulevard',
+      city: 'Los Angeles',
+      state: 'CA',
+      website: 'https://different-bakery.example',
+    };
+    workflow(jsonResponse(researchCompleted(wrongBusiness)));
+    const result = await service().research(REQUEST);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/before the exact merchant was verified/i);
+  });
+
+  it('rejects conflicting identity data even when the website domain matches', async () => {
+    const conflictingBusiness: RenewalBusinessResearch = {
+      ...RESEARCH,
+      legalBusinessName: 'Different Bakery LLC',
+      dba: 'Different Bakery',
+      address: '900 Sunset Boulevard',
+      city: 'Los Angeles',
+      state: 'CA',
+    };
+    workflow(jsonResponse(researchCompleted(conflictingBusiness)));
+    const result = await service().research(REQUEST);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/before the exact merchant was verified/i);
+  });
+
+  it('does not treat a name plus state alone as an exact location match', async () => {
+    const partialLocationRequest: RenewalResearchRequest = {
+      ...REQUEST,
+      input: {
+        ...REQUEST.input,
+        businessAddress: '',
+        city: '',
+        state: 'NY',
+        website: '',
+      },
+    };
+    workflow(jsonResponse(researchCompleted({ ...RESEARCH, city: 'Buffalo' })));
+    const result = await service().research(partialLocationRequest);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/before the exact merchant was verified/i);
   });
 
   it.each([
@@ -233,7 +309,44 @@ describe('OpenAIResponsesService validation', () => {
         ...DRAFT,
         emailBody: 'Hi Ada, would you like to discuss renewal options for Example Bakery?',
       }),
-      /verified business research/i,
+      /incorporate every selected research fact/i,
+    ],
+    [
+      'too few research facts',
+      generationCompleted({ ...DRAFT, researchFactsUsed: ['Ingredient inventory'] }),
+      /2-4 distinct verified business facts/i,
+    ],
+    [
+      'invented research fact',
+      generationCompleted({
+        ...DRAFT,
+        researchFactsUsed: ['Ingredient inventory', 'Revenue growth'],
+      }),
+      /not grounded in verified research/i,
+    ],
+    [
+      'selected fact omitted from outreach',
+      generationCompleted({
+        ...DRAFT,
+        researchFactsUsed: ['Ingredient inventory', 'Bread and pastries'],
+      }),
+      /incorporate every selected research fact/i,
+    ],
+    [
+      'research-free SMS',
+      generationCompleted({
+        ...DRAFT,
+        smsBody: 'Hi Ada, can we review renewal options for Example Bakery?',
+      }),
+      /SMS did not use any selected business research/i,
+    ],
+    [
+      'unsupported claim inserted directly into the email',
+      generationCompleted({
+        ...DRAFT,
+        emailBody: `${DRAFT.emailBody} Your revenue has grown significantly.`,
+      }),
+      /unsupported revenue growth/i,
     ],
     [
       'model URL',

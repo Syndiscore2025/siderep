@@ -81,6 +81,7 @@ const OBJECTIVES: RenewalOutreachObjective[] = [
 ];
 const DRAFT_KEYS = [
   'outreachObjective',
+  'researchFactsUsed',
   'businessSummary',
   'emailSubject',
   'emailBody',
@@ -94,6 +95,14 @@ const DRAFT_SCHEMA = {
       type: 'string',
       enum: OBJECTIVES,
       description: 'Must exactly match the fixed outreach objective supplied in context.',
+    },
+    researchFactsUsed: {
+      type: 'array',
+      minItems: 0,
+      maxItems: 4,
+      items: { type: 'string', maxLength: 300 },
+      description:
+        'Two to four short facts grounded in verified business research and used naturally in the email; empty only when the exact business is unverified.',
     },
     businessSummary: {
       type: 'string',
@@ -125,6 +134,7 @@ const DRAFT_SCHEMA = {
 type JsonRecord = Record<string, unknown>;
 type DraftContent = Omit<RenewalDraft, 'sources'> & {
   outreachObjective: RenewalOutreachObjective;
+  researchFactsUsed: string[];
 };
 type SourceCandidate = { url: string; title?: string };
 type ResponseStage = {
@@ -238,6 +248,97 @@ function normalizeSources(candidates: SourceCandidate[]): RenewalSource[] {
   return [...sources.values()];
 }
 
+function sourceHost(value: string): string {
+  try {
+    return new URL(value).hostname.toLocaleLowerCase().replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+function sameHost(left: string, right: string): boolean {
+  const first = sourceHost(left);
+  const second = sourceHost(right);
+  return Boolean(
+    first &&
+    second &&
+    (first === second || first.endsWith(`.${second}`) || second.endsWith(`.${first}`)),
+  );
+}
+
+function sourcePriority(source: RenewalSource, officialWebsite: string): number {
+  const host = sourceHost(source.url);
+  if (officialWebsite && sameHost(source.url, officialWebsite)) return 0;
+  if (host === 'google.com' || host.endsWith('.google.com') || host === 'maps.app.goo.gl') return 1;
+  if (
+    ['facebook.com', 'instagram.com', 'x.com', 'twitter.com', 'tiktok.com', 'youtube.com'].some(
+      (domain) => host === domain || host.endsWith(`.${domain}`),
+    )
+  )
+    return 2;
+  if (host === 'linkedin.com' || host.endsWith('.linkedin.com')) return 3;
+  if (host === 'bbb.org' || host.endsWith('.bbb.org')) return 4;
+  return 5;
+}
+
+function rankSources(sources: RenewalSource[], officialWebsite: string): RenewalSource[] {
+  return sources
+    .map((source, index) => ({ source, index }))
+    .sort(
+      (left, right) =>
+        sourcePriority(left.source, officialWebsite) -
+          sourcePriority(right.source, officialWebsite) || left.index - right.index,
+    )
+    .map(({ source }) => source);
+}
+
+function comparable(value: string): string {
+  return value
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function valuesMatch(left: string, right: string): boolean {
+  const first = comparable(left);
+  const second = comparable(right);
+  return Boolean(
+    first &&
+    second &&
+    (first === second ||
+      (Math.min(first.length, second.length) >= 5 &&
+        (first.includes(second) || second.includes(first)))),
+  );
+}
+
+function verifyResearchIdentity(
+  request: RenewalResearchRequest,
+  research: RenewalBusinessResearch,
+  hasSource: boolean,
+): boolean {
+  if (!research.exactBusinessVerified || !hasSource) return false;
+  const input = request.input;
+  const websiteMatch = Boolean(input.website && sameHost(input.website, research.website));
+  const addressMatch = Boolean(
+    input.businessAddress &&
+    research.address &&
+    valuesMatch(input.businessAddress, research.address),
+  );
+  const suppliedNames = [input.businessName, input.dba, input.accountName].filter(Boolean);
+  const researchedNames = [research.legalBusinessName, research.dba].filter(Boolean);
+  const nameMatch = suppliedNames.some((name) =>
+    researchedNames.some((researchedName) => valuesMatch(name, researchedName)),
+  );
+  const nameConflict = Boolean(suppliedNames.length && researchedNames.length && !nameMatch);
+  const cityMatch = !input.city || valuesMatch(input.city, research.city);
+  const stateMatch = !input.state || valuesMatch(input.state, research.state);
+  const cityConflict = Boolean(input.city && research.city && !cityMatch);
+  const stateConflict = Boolean(input.state && research.state && !stateMatch);
+  if (nameConflict || cityConflict || stateConflict) return false;
+  const completeLocationMatch = Boolean(input.city && input.state && cityMatch && stateMatch);
+  return websiteMatch || addressMatch || (nameMatch && completeLocationMatch);
+}
+
 function stringArray(value: unknown, maxItems: number, maxLength: number): value is string[] {
   return (
     Array.isArray(value) &&
@@ -289,6 +390,7 @@ function parseDraftContent(
   }
   if (
     typeof value.outreachObjective !== 'string' ||
+    !stringArray(value.researchFactsUsed, 4, 300) ||
     typeof value.businessSummary !== 'string' ||
     typeof value.emailSubject !== 'string' ||
     typeof value.emailBody !== 'string' ||
@@ -301,12 +403,17 @@ function parseDraftContent(
   }
   const draft: DraftContent = {
     outreachObjective: value.outreachObjective as RenewalOutreachObjective,
+    researchFactsUsed: value.researchFactsUsed,
     businessSummary: value.businessSummary,
     emailSubject: value.emailSubject.trim(),
     emailBody: value.emailBody.trim(),
     smsBody: value.smsBody.trim(),
   };
-  if (DRAFT_KEYS.some((key) => /(?:https?:\/\/|www\.)/i.test(draft[key]))) {
+  if (
+    [draft.businessSummary, draft.emailSubject, draft.emailBody, draft.smsBody]
+      .concat(draft.researchFactsUsed)
+      .some((value) => /(?:https?:\/\/|www\.)/i.test(value))
+  ) {
     return err(new Error('OpenAI output contained a URL outside API source metadata.'));
   }
   if (!draft.emailSubject || !draft.emailBody || !draft.smsBody) {
@@ -392,6 +499,7 @@ function parseJson(text: string): Result<unknown> {
 
 function parseResearchResponse(
   value: unknown,
+  request: RenewalResearchRequest,
 ): Result<{ research: RenewalBusinessResearch; sources: RenewalSource[] }> {
   const output = collectOutput(value, true);
   if (!output.ok) return output;
@@ -399,14 +507,30 @@ function parseResearchResponse(
   if (!parsed.ok) return parsed;
   const content = parseResearchContent(parsed.value);
   if (!content.ok) return content;
-  const research = output.value.sources.length
+  const sources = rankSources(output.value.sources, request.input.website || content.value.website);
+  const verified = verifyResearchIdentity(request, content.value, sources.length > 0);
+  const research = verified
     ? content.value
     : { ...content.value, exactBusinessVerified: false, confidence: 'low' as const };
-  return ok({ research, sources: output.value.sources });
+  return ok({ research, sources });
 }
 
 function anchors(values: string[]): string[] {
-  const ignored = new Set(['business', 'company', 'service', 'services', 'working', 'capital']);
+  const ignored = new Set([
+    'business',
+    'company',
+    'service',
+    'services',
+    'working',
+    'capital',
+    'funding',
+    'additional',
+    'expenses',
+    'could',
+    'help',
+    'their',
+    'with',
+  ]);
   return values
     .flatMap((value) => [value, ...value.split(/[^A-Za-z0-9]+/)])
     .map((value) => value.trim().toLocaleLowerCase())
@@ -416,6 +540,51 @@ function anchors(values: string[]): string[] {
 function includesAny(text: string, values: string[]): boolean {
   const normalized = text.toLocaleLowerCase();
   return values.some((value) => value && normalized.includes(value.toLocaleLowerCase()));
+}
+
+const RESTRICTED_CLAIMS = [
+  {
+    name: 'revenue growth',
+    pattern:
+      /\b(?:(?:revenue|sales)\s+(?:has\s+)?(?:grown|growth|increased|increasing)|growing\s+(?:revenue|sales))\b/i,
+  },
+  { name: 'profitability', pattern: /\bprofitab(?:le|ility)\b/i },
+  {
+    name: 'employee count',
+    pattern:
+      /\b(?:(?:employs?|employees?|staff)\s+(?:of\s+)?[0-9]+|[0-9]+\s+(?:employees?|staff members?))\b/i,
+  },
+  {
+    name: 'contracts',
+    pattern: /\b(?:(?:new|major|specific|large)\s+contracts?|contract(?:s|ed)?\s+with)\b/i,
+  },
+  { name: 'expansion', pattern: /\b(?:expansion|expanded|expanding)\b/i },
+  {
+    name: 'new locations',
+    pattern: /\b(?:new locations?|opened?\s+(?:a\s+)?(?:new|second)\s+location)\b/i,
+  },
+  {
+    name: 'customer volume',
+    pattern: /\b(?:customer volume|customers?\s+(?:has|have)\s+(?:grown|increased))\b/i,
+  },
+] as const;
+
+function validateRestrictedClaims(
+  content: DraftContent,
+  context: RenewalMerchantContext,
+): Result<DraftContent> {
+  const outreach = `${content.emailSubject}\n${content.emailBody}\n${content.smsBody}`;
+  const suppliedContext = JSON.stringify({ merchant: context.merchant, funding: context.funding });
+  const verifiedResearch = context.businessResearch.exactBusinessVerified
+    ? JSON.stringify(context.businessResearch)
+    : '';
+  const support = `${suppliedContext}\n${verifiedResearch}`;
+  for (const claim of RESTRICTED_CLAIMS) {
+    if (claim.pattern.test(outreach) && !claim.pattern.test(support)) {
+      return err(new Error(`OpenAI introduced unsupported ${claim.name} information.`));
+    }
+  }
+  return ok(content);
 }
 
 function validatePersonalization(
@@ -435,19 +604,47 @@ function validatePersonalization(
   ) {
     return err(new Error('OpenAI output was not personalized to the supplied merchant identity.'));
   }
-  if (context.businessResearch.exactBusinessVerified) {
-    const identityTokens = new Set(
-      anchors([context.merchant.legalBusinessName, context.merchant.dba]),
-    );
-    const researchAnchors = anchors([
-      context.businessResearch.industry,
-      ...context.businessResearch.products,
-      ...context.businessResearch.services,
-      ...context.businessResearch.workingCapitalUses,
-    ]).filter((value) => !identityTokens.has(value));
-    if (researchAnchors.length && !includesAny(content.emailBody, researchAnchors)) {
-      return err(new Error('OpenAI email did not use the verified business research.'));
+  const claims = validateRestrictedClaims(content, context);
+  if (!claims.ok) return claims;
+  if (!context.businessResearch.exactBusinessVerified) {
+    if (content.researchFactsUsed.length) {
+      return err(
+        new Error('OpenAI used business research before the exact merchant was verified.'),
+      );
     }
+    return ok(content);
+  }
+  const facts = content.researchFactsUsed.map((fact) => fact.trim()).filter(Boolean);
+  if (
+    facts.length < 2 ||
+    facts.length > 4 ||
+    new Set(facts.map(comparable)).size !== facts.length
+  ) {
+    return err(new Error('OpenAI did not select 2-4 distinct verified business facts.'));
+  }
+  const researchCorpus = [
+    context.businessResearch.industry,
+    context.businessResearch.companyDescription,
+    ...context.businessResearch.products,
+    ...context.businessResearch.services,
+    context.businessResearch.customerType,
+    context.businessResearch.businessModel,
+    context.businessResearch.locationDetails,
+    ...context.businessResearch.currentBusinessActivity,
+    ...context.businessResearch.workingCapitalUses,
+  ].join('\n');
+  for (const fact of facts) {
+    const factAnchors = anchors([fact]);
+    if (!factAnchors.length || !includesAny(researchCorpus, factAnchors)) {
+      return err(new Error('OpenAI selected a fact that was not grounded in verified research.'));
+    }
+    if (!includesAny(content.emailBody, factAnchors)) {
+      return err(new Error('OpenAI did not naturally incorporate every selected research fact.'));
+    }
+  }
+  const selectedFactAnchors = anchors(facts);
+  if (selectedFactAnchors.length && !includesAny(content.smsBody, selectedFactAnchors)) {
+    return err(new Error('OpenAI SMS did not use any selected business research.'));
   }
   return ok(content);
 }
@@ -465,7 +662,7 @@ function parseGenerationResponse(
   if (!content.ok) return content;
   const personalized = validatePersonalization(content.value, context);
   if (!personalized.ok) return personalized;
-  const { outreachObjective: _objective, ...draft } = personalized.value;
+  const { outreachObjective: _objective, researchFactsUsed: _facts, ...draft } = personalized.value;
   const businessSummary =
     sources.length && context.businessResearch.exactBusinessVerified ? draft.businessSummary : '';
   return ok({ ...draft, businessSummary, sources });
@@ -558,7 +755,7 @@ export class OpenAIResponsesService implements RenewalResearchService {
       signal,
     );
     if (!researchResponse.ok) return researchResponse;
-    const researched = parseResearchResponse(researchResponse.value);
+    const researched = parseResearchResponse(researchResponse.value, request);
     if (!researched.ok) return researched;
     const context = buildRenewalMerchantContext(request, researched.value.research);
     const generationResponse = await this.request(

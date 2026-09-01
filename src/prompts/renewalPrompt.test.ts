@@ -119,6 +119,18 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(
       /company's own website and Google Business Profile over generic directories/i,
     );
+    const official = prompt.indexOf('(1) official company website');
+    const google = prompt.indexOf('(2) Google Business Profile');
+    const social = prompt.indexOf('(3) official company social media');
+    const linkedIn = prompt.indexOf('(4) LinkedIn');
+    const bbb = prompt.indexOf('(5) BBB');
+    const directories = prompt.indexOf('(6) credible directories or publications');
+    expect(official).toBeGreaterThan(-1);
+    expect(official).toBeLessThan(google);
+    expect(google).toBeLessThan(social);
+    expect(social).toBeLessThan(linkedIn);
+    expect(linkedIn).toBeLessThan(bbb);
+    expect(bbb).toBeLessThan(directories);
   });
 
   it('derives specific capital uses and includes only verified current context', () => {
@@ -162,6 +174,14 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toContain('"outreachObjective": "renewal_plus_alternative_options"');
     expect(prompt).toMatch(/do not dump the profile or funding record into the message/i);
     expect(prompt).toMatch(/one relevant operational detail.*specific realistic capital uses/i);
+    expect(prompt).toMatch(/select 2-4 useful facts.*naturally incorporate all of them/i);
+    expect(prompt).toMatch(/researchFactsUsed/i);
+    expect(prompt).toMatch(/contractors—materials, labor, subcontractors/i);
+    expect(prompt).toMatch(/dog groomers—grooming equipment, shampoos/i);
+    expect(prompt).toMatch(/HVAC wholesalers—HVAC or mini-split inventory/i);
+    expect(prompt).toMatch(/event-rental companies—rental inventory/i);
+    expect(prompt).toMatch(/never claim revenue growth, profitability, employee count, contracts/i);
+    expect(prompt).toMatch(/leave anything unverified out instead of guessing/i);
   });
 
   it('uses the deterministic outreach objective rather than asking the model to select one', () => {
