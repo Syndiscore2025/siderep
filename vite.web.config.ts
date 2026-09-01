@@ -2,7 +2,23 @@ import { fileURLToPath, URL } from 'node:url';
 
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+
+// Vite injects dev-mode styles inline without the CSP nonce, so allow
+// 'unsafe-inline' for style-src during `vite serve` only. Production builds
+// keep the strict nonce-based policy from web/index.html.
+function devStyleCsp(): Plugin {
+  return {
+    name: 'siderep:dev-style-csp',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      return html.replace(
+        "style-src 'self' 'nonce-siderep-web-csp'",
+        "style-src 'self' 'unsafe-inline'",
+      );
+    },
+  };
+}
 
 export default defineConfig({
   root: fileURLToPath(new URL('./web', import.meta.url)),
@@ -13,7 +29,7 @@ export default defineConfig({
       '/src': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), devStyleCsp()],
   appType: 'spa',
   html: {
     cspNonce: 'siderep-web-csp',
