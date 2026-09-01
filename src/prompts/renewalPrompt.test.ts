@@ -186,9 +186,55 @@ describe('buildRenewalPrompt', () => {
 
   it('uses the deterministic outreach objective rather than asking the model to select one', () => {
     expect(generation()).toMatch(/Fixed outreach objective: renewal/i);
-    expect(generation({ outreachType: 'add_on' })).toMatch(
+    expect(generation({ eligibility: 'not_eligible', outreachType: 'add_on' })).toMatch(
       /Fixed outreach objective: additional_position/i,
     );
+  });
+
+  it('applies renewal-eligible scenario rules before generation', () => {
+    const prompt = generation({
+      input: {
+        ...renewal().input,
+        specialLenderIncentives: 'Existing balance payoff with a reduced fee',
+        existingPositions: '1',
+      },
+    });
+    expect(prompt).toMatch(/merchant has reached renewal eligibility/i);
+    expect(prompt).toMatch(/mention the current lender naturally/i);
+    expect(prompt).toMatch(/existing balance can be paid off through the renewal/i);
+    expect(prompt).toMatch(/retaining one position\/payment/i);
+    expect(prompt).toMatch(/never promise or guarantee approval/i);
+  });
+
+  it('applies not-yet-eligible LOC and term-loan rules only when supported', () => {
+    const prompt = generation({
+      eligibility: 'not_eligible',
+      input: {
+        ...renewal().input,
+        possibleLineOfCredit: '$25,000 LOC',
+        possibleTermLoan: '36-month term loan',
+      },
+    });
+    expect(prompt).toMatch(/do not pitch a renewal.*not quite at the renewal point/i);
+    expect(prompt).toMatch(/draw funds as needed.*not describe it as a lump-sum term loan/i);
+    expect(prompt).toMatch(/established payment history.*worth checking/i);
+    expect(prompt).toMatch(/do not promise term-loan approval or better pricing/i);
+  });
+
+  it('makes a supplied outstanding offer primary and gates expiration urgency', () => {
+    const urgent = generation({
+      input: {
+        ...renewal().input,
+        existingOutstandingOffer: '$75,000 MCA offer expires soon',
+      },
+    });
+    expect(urgent).toMatch(/outstanding offer the main purpose/i);
+    expect(urgent).toMatch(/supports expiration urgency/i);
+
+    const noExpiration = generation({
+      input: { ...renewal().input, existingOutstandingOffer: '$75,000 MCA offer' },
+    });
+    expect(noExpiration).toMatch(/do not create urgency or claim the offer expires soon/i);
   });
 
   it('escapes and orders every supplied sent email as context oldest-to-newest', () => {

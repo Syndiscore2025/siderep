@@ -62,7 +62,7 @@ const DRAFT = {
   businessSummary: 'Example Bakery produces baked goods for local restaurants.',
   emailSubject: 'Example Bakery renewal options',
   emailBody:
-    'Hi Ada, your bakery could use added flexibility for ingredient inventory and delivery payroll. Would you have time to review renewal and line-of-credit options?',
+    'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit for ingredient inventory and delivery payroll. A $20,000 line of credit could also let you draw funds as needed. Would you have time to connect?',
   smsBody:
     "Hi Ada, can we review renewal options for Example Bakery's ingredient inventory and delivery needs?",
 };
@@ -94,6 +94,13 @@ function generationCompleted(draft: unknown = DRAFT): unknown {
   return {
     status: 'completed',
     output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(draft) }] }],
+  };
+}
+
+function connectionCompleted(text = 'OK'): unknown {
+  return {
+    status: 'completed',
+    output: [{ type: 'message', content: [{ type: 'output_text', text }] }],
   };
 }
 
@@ -132,7 +139,12 @@ describe('OpenAIResponsesService two-stage contract', () => {
       tools: [{ type: 'web_search', search_context_size: 'high', external_web_access: true }],
       tool_choice: 'required',
       include: ['web_search_call.action.sources'],
-      text: { format: { name: 'renewal_business_research', strict: true } },
+      reasoning: { effort: 'medium' },
+      max_output_tokens: 6000,
+      text: {
+        verbosity: 'medium',
+        format: { name: 'renewal_business_research', strict: true },
+      },
     });
     const context = buildRenewalMerchantContext(REQUEST, RESEARCH);
     const generationBody = JSON.parse(String(fetchSpy.mock.calls[1][1]?.body));
@@ -140,7 +152,12 @@ describe('OpenAIResponsesService two-stage contract', () => {
       model: 'gpt-5-mini',
       input: buildRenewalGenerationPrompt(context),
       store: false,
-      text: { format: { name: 'renewal_personalized_outreach', strict: true } },
+      reasoning: { effort: 'medium' },
+      max_output_tokens: 6000,
+      text: {
+        verbosity: 'medium',
+        format: { name: 'renewal_personalized_outreach', strict: true },
+      },
     });
     expect(generationBody).not.toHaveProperty('tools');
     expect(generationBody).not.toHaveProperty('tool_choice');
@@ -159,6 +176,77 @@ describe('OpenAIResponsesService two-stage contract', () => {
     const result = await new OpenAIResponsesService(DEFAULT_SETTINGS).research(REQUEST);
     expect(result.ok).toBe(false);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses the selected model for a tiny connection probe without web search or pipeline controls', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse(connectionCompleted()));
+    const result = await service().testConnection();
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({
+      model: 'gpt-5-mini',
+      input: 'Respond with exactly: OK',
+      max_output_tokens: 16,
+    });
+    expect(body).not.toHaveProperty('tools');
+    expect(body).not.toHaveProperty('reasoning');
+    expect(body).not.toHaveProperty('text');
+  });
+
+  it('applies the centralized model, reasoning, verbosity, and token settings to both pipeline stages', async () => {
+    const configured = new OpenAIResponsesService({
+      ...SETTINGS,
+      renewalAI: { ...SETTINGS.renewalAI, model: 'gpt-5.6-sol' },
+      ai: {
+        ...SETTINGS.ai,
+        reasoningEffort: 'high',
+        verbosity: 'high',
+        maxOutputTokens: 7200,
+      },
+    });
+    const fetchSpy = workflow();
+    const result = await configured.research(REQUEST);
+    expect(result.ok).toBe(true);
+    for (const call of fetchSpy.mock.calls) {
+      const body = JSON.parse(String(call[1]?.body));
+      expect(body).toMatchObject({
+        model: 'gpt-5.6-sol',
+        reasoning: { effort: 'high' },
+        max_output_tokens: 7200,
+        text: { verbosity: 'high' },
+      });
+    }
+  });
+
+  it('removes web search at runtime and uses only supplied information when disabled', async () => {
+    const webSearchDisabled = new OpenAIResponsesService({
+      ...SETTINGS,
+      ai: { ...SETTINGS.ai, webSearchEnabled: false },
+    });
+    const fallbackDraft = {
+      ...DRAFT,
+      researchFactsUsed: [],
+      emailBody:
+        'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
+      smsBody: 'Hi Ada, can we review renewal options for Example Bakery?',
+    };
+    const fetchSpy = workflow(
+      jsonResponse({
+        status: 'completed',
+        output: [
+          { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(RESEARCH) }] },
+        ],
+      }),
+      jsonResponse(generationCompleted(fallbackDraft)),
+    );
+    const result = await webSearchDisabled.research(REQUEST);
+    expect(result.ok).toBe(true);
+    const researchBody = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(researchBody).not.toHaveProperty('tools');
+    expect(researchBody).not.toHaveProperty('tool_choice');
+    expect(researchBody.input).toMatch(/Web search is disabled/i);
   });
 });
 
@@ -191,14 +279,21 @@ describe('OpenAIResponsesService validation', () => {
   });
 
   it('still generates from supplied context after a search with no safe source', async () => {
+    const fallbackDraft = {
+      ...DRAFT,
+      researchFactsUsed: [],
+      emailBody:
+        'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
+      smsBody: 'Hi Ada, can we review renewal options for Example Bakery?',
+    };
     workflow(
       jsonResponse(researchCompleted(RESEARCH, [{ url: 'javascript:alert(1)' }])),
-      jsonResponse(generationCompleted({ ...DRAFT, researchFactsUsed: [] })),
+      jsonResponse(generationCompleted(fallbackDraft)),
     );
     const result = await service().research(REQUEST);
     expect(result.ok && result.value.sources).toEqual([]);
     expect(result.ok && result.value.businessSummary).toBe('');
-    expect(result.ok && result.value.smsBody).toBe(DRAFT.smsBody);
+    expect(result.ok && result.value.smsBody).toBe(fallbackDraft.smsBody);
   });
 
   it('rejects research that skipped required web search', async () => {
@@ -282,6 +377,120 @@ describe('OpenAIResponsesService validation', () => {
     expect(!result.ok && result.error.message).toMatch(/before the exact merchant was verified/i);
   });
 
+  it('uses a shortened Google address link as an exact signal with matching name and source', async () => {
+    const googleAddressRequest: RenewalResearchRequest = {
+      ...REQUEST,
+      input: {
+        ...REQUEST.input,
+        businessAddress: '',
+        businessAddressGoogleUrl: 'https://maps.app.goo.gl/AbCdEf123',
+        city: '',
+        state: '',
+        website: '',
+      },
+    };
+    workflow(
+      jsonResponse(
+        researchCompleted(RESEARCH, [
+          { type: 'url', url: 'https://google.com/maps/place/example-bakery', title: 'Google' },
+        ]),
+      ),
+    );
+    const result = await service().research(googleAddressRequest);
+    expect(result.ok).toBe(true);
+  });
+
+  it.each([
+    [
+      'not-yet-eligible LOC',
+      {
+        ...REQUEST,
+        eligibility: 'not_eligible',
+        input: { ...REQUEST.input, specialLenderIncentives: '' },
+      },
+      {
+        ...DRAFT,
+        outreachObjective: 'line_of_credit',
+        emailSubject: 'Example Bakery working-capital options',
+        emailBody:
+          'Hi Ada, Example Bakery is not quite at the renewal point yet. We may still explore additional working capital through another funding option, including a $20,000 line of credit you can draw as needed for ingredient inventory and delivery payroll.',
+      },
+    ],
+    [
+      'term loan',
+      {
+        ...REQUEST,
+        eligibility: 'not_eligible',
+        input: {
+          ...REQUEST.input,
+          possibleLineOfCredit: '',
+          possibleTermLoan: '36-month term loan',
+          specialLenderIncentives: '',
+        },
+      },
+      {
+        ...DRAFT,
+        outreachObjective: 'term_loan',
+        emailSubject: 'Example Bakery working-capital options',
+        emailBody:
+          'Hi Ada, Example Bakery is not quite at the renewal point yet. We may still explore additional working capital through another funding option. Based on your established payment history, it may be worth checking whether a 36-month term loan is available for ingredient inventory and delivery payroll.',
+      },
+    ],
+    [
+      'expiring outstanding offer',
+      {
+        ...REQUEST,
+        input: {
+          ...REQUEST.input,
+          possibleLineOfCredit: '',
+          specialLenderIncentives: '',
+          existingOutstandingOffer: '$75,000 MCA offer expires soon',
+        },
+      },
+      {
+        ...DRAFT,
+        outreachObjective: 'existing_outstanding_offer',
+        emailSubject: 'Example Bakery offer follow-up',
+        emailBody:
+          'Hi Ada, I am following up because the $75,000 MCA offer for Example Bakery expires soon. The offer could support ingredient inventory and delivery payroll. Would you like to review the details?',
+      },
+    ],
+  ] as const)('accepts a correctly framed %s scenario', async (_name, request, draft) => {
+    workflow(jsonResponse(researchCompleted()), jsonResponse(generationCompleted(draft)));
+    const result = await service().research(request);
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects eligible renewal outreach that omits the current lender', async () => {
+    workflow(
+      jsonResponse(researchCompleted()),
+      jsonResponse(
+        generationCompleted({
+          ...DRAFT,
+          emailBody: DRAFT.emailBody.replace(' with Example Funding', ''),
+        }),
+      ),
+    );
+    const result = await service().research(REQUEST);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/omitted the supplied current lender/i);
+  });
+
+  it('rejects a LOC scenario that omits draw-as-needed flexibility', async () => {
+    workflow(
+      jsonResponse(researchCompleted()),
+      jsonResponse(
+        generationCompleted({
+          ...DRAFT,
+          emailBody: DRAFT.emailBody.replace(' you draw funds as needed', ' provide funds'),
+        }),
+      ),
+    );
+    const result = await service().research(REQUEST);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/line-of-credit draw flexibility/i);
+  });
+
   it.each([
     [
       'malformed research',
@@ -307,7 +516,8 @@ describe('OpenAIResponsesService validation', () => {
       'research-free email',
       generationCompleted({
         ...DRAFT,
-        emailBody: 'Hi Ada, would you like to discuss renewal options for Example Bakery?',
+        emailBody:
+          'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
       }),
       /incorporate every selected research fact/i,
     ],

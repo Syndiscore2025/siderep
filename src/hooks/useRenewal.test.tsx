@@ -149,6 +149,18 @@ describe('useRenewal', () => {
     expect(result.current.draft).toEqual(DRAFT);
   });
 
+  it('allows research from only a Google business address link', async () => {
+    const research = vi.fn<RenewalResearchService['research']>(async () => ok(DRAFT));
+    const { result } = renderHook(() => useRenewal(), {
+      wrapper: createWrapper(emptyExtraction, researchService(research)),
+    });
+    const link = 'https://maps.app.goo.gl/AbCdEf123';
+    act(() => result.current.edit('businessAddressGoogleUrl', link));
+    await act(() => result.current.research());
+    expect(research).toHaveBeenCalledTimes(1);
+    expect(research.mock.calls[0][0].input.businessAddressGoogleUrl).toBe(link);
+  });
+
   it('aborts and ignores stale extraction and research completions', async () => {
     const firstExtraction = deferred<Result<ExtractedCustomer>>();
     const secondExtraction = deferred<Result<ExtractedCustomer>>();

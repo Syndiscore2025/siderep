@@ -60,6 +60,8 @@ describe('RenewalPage', () => {
       'page',
     );
     expect(screen.getByRole('heading', { name: 'Renewal outreach' })).toBeInTheDocument();
+    const googleAddress = screen.getByRole('textbox', { name: 'Google business address link' });
+    expect(googleAddress.closest('label')?.parentElement).toHaveClass('sm:col-span-2');
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Merchant name' }), {
       target: { value: 'Persistent Merchant' },

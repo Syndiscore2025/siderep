@@ -3,6 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, isAssistantAIConfigured, parseSettings } from './settings';
 
 describe('parseSettings', () => {
+  it('uses the SideRep merchant-pipeline defaults', () => {
+    expect(DEFAULT_SETTINGS.renewalAI.model).toBe('gpt-5.6-sol');
+    expect(DEFAULT_SETTINGS.ai).toMatchObject({
+      reasoningEffort: 'medium',
+      verbosity: 'medium',
+      maxOutputTokens: 6000,
+      webSearchEnabled: true,
+    });
+  });
+
   it('returns full defaults for undefined input', () => {
     expect(parseSettings(undefined)).toEqual(DEFAULT_SETTINGS);
   });
@@ -41,6 +51,16 @@ describe('parseSettings', () => {
     expect(parsed.theme).toBe('light');
     expect(parsed.repProfile).toEqual(DEFAULT_SETTINGS.repProfile);
     expect(parsed.renewalAI).toEqual(DEFAULT_SETTINGS.renewalAI);
+  });
+
+  it('migrates the former maxTokens setting without resetting other AI defaults', () => {
+    const parsed = parseSettings({ ai: { maxTokens: 2400 } });
+    expect(parsed.ai).toMatchObject({
+      maxOutputTokens: 2400,
+      reasoningEffort: 'medium',
+      verbosity: 'medium',
+      webSearchEnabled: true,
+    });
   });
 
   it('falls back to defaults when a field is invalid', () => {

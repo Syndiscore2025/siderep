@@ -14,9 +14,16 @@ import {
 } from '@/components/ui';
 import { Diagnostics } from '@/components/settings/Diagnostics';
 import { useResetSettings, useSaveSettings, useSettings } from '@/hooks/useSettings';
-import { createAIService, createEmailService } from '@/services';
-import { EMAIL_DELIVERY_MODES, SUGGESTED_MODELS, THEMES, isAssistantAIConfigured } from '@/types';
-import type { EmailDeliveryMode, Settings, Theme } from '@/types';
+import { createAIService, createEmailService, createRenewalResearchService } from '@/services';
+import {
+  AI_VERBOSITIES,
+  EMAIL_DELIVERY_MODES,
+  REASONING_EFFORTS,
+  SUGGESTED_MODELS,
+  THEMES,
+  isAssistantAIConfigured,
+} from '@/types';
+import type { AIVerbosity, EmailDeliveryMode, ReasoningEffort, Settings, Theme } from '@/types';
 import { isExtensionContext } from '@/utils/platform';
 
 type TestState =
@@ -50,6 +57,7 @@ export function SettingsPage() {
   const [showAssistantApiKey, setShowAssistantApiKey] = useState(false);
   const [showRenewalApiKey, setShowRenewalApiKey] = useState(false);
   const [test, setTest] = useState<TestState>({ status: 'idle' });
+  const [renewalTest, setRenewalTest] = useState<TestState>({ status: 'idle' });
   const [google, setGoogle] = useState<TestState>({ status: 'idle' });
 
   // Re-sync the local form whenever persisted settings change (load/reset).
@@ -62,6 +70,14 @@ export function SettingsPage() {
     setTest({ status: 'testing' });
     const result = await createAIService(form).testConnection();
     setTest(result.ok ? { status: 'ok' } : { status: 'error', message: result.error.message });
+  };
+
+  const runRenewalTest = async () => {
+    setRenewalTest({ status: 'testing' });
+    const result = await createRenewalResearchService(form).testConnection();
+    setRenewalTest(
+      result.ok ? { status: 'ok' } : { status: 'error', message: result.error.message },
+    );
   };
 
   const connectGoogle = async () => {
@@ -160,7 +176,10 @@ export function SettingsPage() {
                     <Input
                       type={showRenewalApiKey ? 'text' : 'password'}
                       value={form.renewalAI.apiKey}
-                      onChange={(e) => patch('renewalAI', { apiKey: e.target.value })}
+                      onChange={(e) => {
+                        patch('renewalAI', { apiKey: e.target.value });
+                        setRenewalTest({ status: 'idle' });
+                      }}
                       autoComplete="off"
                     />
                     <Button
@@ -172,13 +191,46 @@ export function SettingsPage() {
                     </Button>
                   </div>
                 </Field>
-                <Field label="Model" hint="Enter the model configured for your OpenAI account.">
+                <Field
+                  label="Model"
+                  hint="Primary model for merchant research, reasoning, and outreach."
+                >
                   <Input
                     value={form.renewalAI.model}
-                    onChange={(e) => patch('renewalAI', { model: e.target.value })}
-                    placeholder="e.g. gpt-4o-mini"
+                    list="siderep-renewal-models"
+                    onChange={(e) => {
+                      patch('renewalAI', { model: e.target.value });
+                      setRenewalTest({ status: 'idle' });
+                    }}
+                    placeholder="gpt-5.6-sol"
                   />
+                  <datalist id="siderep-renewal-models">
+                    {SUGGESTED_MODELS.map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
                 </Field>
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Button
+                    size="sm"
+                    onClick={() => void runRenewalTest()}
+                    loading={renewalTest.status === 'testing'}
+                    disabled={!renewalConfigured}
+                  >
+                    Test primary model
+                  </Button>
+                  {renewalTest.status === 'ok' && (
+                    <span className="flex animate-fade-in items-center gap-1 text-[11px] font-medium text-success">
+                      <CheckIcon className="size-3.5" />
+                      Connection succeeded
+                    </span>
+                  )}
+                  {renewalTest.status === 'error' && (
+                    <span className="animate-fade-in text-[11px] text-danger">
+                      {renewalTest.message}
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] text-content-muted">
                   Stored in {extension ? 'chrome.storage.local' : 'localStorage'} on this device
                   only. Your API key is never logged.
@@ -221,7 +273,7 @@ export function SettingsPage() {
                     </Button>
                   </div>
                 </Field>
-                <Field label="Model" hint="Separate from the Renewal model above.">
+                <Field label="Assistant chat model" hint="Separate from the Renewal model above.">
                   <Input
                     list="siderep-assistant-models"
                     value={form.assistantAI.model}
@@ -272,15 +324,56 @@ export function SettingsPage() {
                     className="w-full accent-(--color-accent)"
                   />
                 </Field>
-                <Field label="Max response tokens">
+                <Field label="Reasoning effort">
+                  <Select
+                    value={form.ai.reasoningEffort}
+                    onChange={(e) =>
+                      patch('ai', { reasoningEffort: e.target.value as ReasoningEffort })
+                    }
+                  >
+                    {REASONING_EFFORTS.map((effort) => (
+                      <option key={effort} value={effort}>
+                        {effort}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Verbosity">
+                  <Select
+                    value={form.ai.verbosity}
+                    onChange={(e) => patch('ai', { verbosity: e.target.value as AIVerbosity })}
+                  >
+                    {AI_VERBOSITIES.map((verbosity) => (
+                      <option key={verbosity} value={verbosity}>
+                        {verbosity}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Max output tokens">
                   <Input
                     type="number"
                     min={1}
                     max={32000}
-                    value={form.ai.maxTokens}
-                    onChange={(e) => patch('ai', { maxTokens: Number(e.target.value) || 1 })}
+                    value={form.ai.maxOutputTokens}
+                    onChange={(e) => patch('ai', { maxOutputTokens: Number(e.target.value) || 1 })}
                   />
                 </Field>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-content-primary">Web search</p>
+                    <p className="text-[11px] text-content-muted">
+                      {form.ai.webSearchEnabled
+                        ? 'Enabled for business research only.'
+                        : 'Disabled; research uses only supplied information.'}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={form.ai.webSearchEnabled}
+                    onChange={(webSearchEnabled) => patch('ai', { webSearchEnabled })}
+                    aria-label="Web search"
+                  />
+                </div>
               </div>
             </Card>
 

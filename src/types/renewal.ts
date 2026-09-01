@@ -9,6 +9,8 @@ export type RenewalOutreachObjective =
   | 'term_loan'
   | 'renewal_plus_alternative_options'
   | 'existing_outstanding_offer';
+export type RenewalFundingScenario =
+  'renewal_eligible' | 'not_yet_eligible' | 'line_of_credit' | 'term_loan' | 'outstanding_offer';
 
 export interface RenewalInput {
   merchantName: string;
@@ -16,6 +18,7 @@ export interface RenewalInput {
   accountName: string;
   dba: string;
   businessAddress: string;
+  businessAddressGoogleUrl: string;
   city: string;
   state: string;
   industry: string;
@@ -62,6 +65,7 @@ export interface RenewalMerchantContext {
     merchantFirstName: string;
     merchantLastName: string;
     address: string;
+    googleAddressUrl: string;
     city: string;
     state: string;
     website: string;
@@ -84,6 +88,14 @@ export interface RenewalMerchantContext {
     existingOutstandingOffer: string;
   };
   outreachObjective: RenewalOutreachObjective;
+  fundingScenario: {
+    primary: RenewalFundingScenario;
+    includesLineOfCredit: boolean;
+    includesTermLoan: boolean;
+    payoffSupported: boolean;
+    singlePositionSupported: boolean;
+    expirationUrgencySupported: boolean;
+  };
   representative: RenewalRepProfile;
   sentEmailHistory: RenewalSentEmailContext[];
 }
@@ -167,6 +179,7 @@ export const EMPTY_RENEWAL_INPUT: RenewalInput = {
   accountName: '',
   dba: '',
   businessAddress: '',
+  businessAddressGoogleUrl: '',
   city: '',
   state: '',
   industry: '',

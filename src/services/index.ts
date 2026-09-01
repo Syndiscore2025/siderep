@@ -18,6 +18,8 @@ export type { SettingsPatch } from './settings/settingsService';
 
 export { OpenAIChatService, createAIService } from './ai/openAIChatService';
 export type { AIService } from './ai/openAIChatService';
+export { createSideRepAIConfig } from './ai/aiConfig';
+export type { SideRepAIConfig } from './ai/aiConfig';
 export {
   OpenAIResponsesService,
   createRenewalResearchService,
@@ -56,6 +58,7 @@ export type {
   RecordCopiedRenewalEmailResult,
 } from './renewal/renewalHistoryService';
 export { buildRenewalMerchantContext, determineOutreachObjective } from './renewal/merchantContext';
+export { addressFromGoogleUrl, normalizeGoogleAddressUrl } from './renewal/googleAddress';
 
 export {
   MessagingExtractionService,

@@ -14,7 +14,18 @@ export const THEMES = ['dark', 'light', 'system'] as const;
 export type Theme = (typeof THEMES)[number];
 
 /** Suggested OpenAI model identifiers (free text is also allowed). */
-export const SUGGESTED_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'o4-mini'];
+export const SUGGESTED_MODELS = [
+  'gpt-5.6-sol',
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4.1',
+  'gpt-4.1-mini',
+  'o4-mini',
+];
+export const REASONING_EFFORTS = ['none', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+export const AI_VERBOSITIES = ['low', 'medium', 'high'] as const;
+export type AIVerbosity = (typeof AI_VERBOSITIES)[number];
 
 export const settingsSchema = z.object({
   repProfile: z.object({
@@ -25,7 +36,7 @@ export const settingsSchema = z.object({
   }),
   renewalAI: z.object({
     apiKey: z.string().default(''),
-    model: z.string().trim().default(''),
+    model: z.string().trim().default('gpt-5.6-sol'),
   }),
   assistantAI: z.object({
     apiKey: z.string().default(''),
@@ -33,7 +44,10 @@ export const settingsSchema = z.object({
   }),
   ai: z.object({
     temperature: z.number().min(0).max(2).default(0.7),
-    maxTokens: z.number().int().positive().max(32000).default(1200),
+    reasoningEffort: z.enum(REASONING_EFFORTS).default('medium'),
+    verbosity: z.enum(AI_VERBOSITIES).default('medium'),
+    maxOutputTokens: z.number().int().positive().max(32000).default(6000),
+    webSearchEnabled: z.boolean().default(true),
   }),
   prompts: z.object({
     defaultTone: z.string().default('professional'),
@@ -63,9 +77,15 @@ export type Settings = z.infer<typeof settingsSchema>;
 /** Fully-populated default configuration used on first run. */
 export const DEFAULT_SETTINGS: Settings = {
   repProfile: { name: '', company: '', phone: '', email: '' },
-  renewalAI: { apiKey: '', model: '' },
+  renewalAI: { apiKey: '', model: 'gpt-5.6-sol' },
   assistantAI: { apiKey: '', model: 'gpt-4o-mini' },
-  ai: { temperature: 0.7, maxTokens: 1200 },
+  ai: {
+    temperature: 0.7,
+    reasoningEffort: 'medium',
+    verbosity: 'medium',
+    maxOutputTokens: 6000,
+    webSearchEnabled: true,
+  },
   prompts: { defaultTone: 'professional', signature: '', customInstructions: '' },
   google: { connectedEmail: null },
   email: { deliveryMode: 'gmail_api', template: { subject: '', body: '' }, rememberSent: true },
@@ -94,7 +114,13 @@ export function parseSettings(raw: unknown): Settings {
       ...(typeof legacyAI.model === 'string' ? { model: legacyAI.model } : {}),
       ...assistantAI,
     },
-    ai: { ...DEFAULT_SETTINGS.ai, ...legacyAI },
+    ai: {
+      ...DEFAULT_SETTINGS.ai,
+      ...legacyAI,
+      ...(typeof legacyAI.maxTokens === 'number' && typeof legacyAI.maxOutputTokens !== 'number'
+        ? { maxOutputTokens: legacyAI.maxTokens }
+        : {}),
+    },
     prompts: { ...DEFAULT_SETTINGS.prompts, ...asRecord(input.prompts) },
     google: { ...DEFAULT_SETTINGS.google, ...asRecord(input.google) },
     email: {
