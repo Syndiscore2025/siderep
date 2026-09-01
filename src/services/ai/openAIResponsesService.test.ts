@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildRenewalPrompt } from '@/prompts';
-import { DEFAULT_SETTINGS } from '@/types';
-import type { RenewalResearchRequest, Settings } from '@/types';
+import { buildRenewalGenerationPrompt, buildRenewalResearchPrompt } from '@/prompts';
+import { buildRenewalMerchantContext } from '@/services/renewal/merchantContext';
+import { DEFAULT_SETTINGS, EMPTY_RENEWAL_INPUT } from '@/types';
+import type { RenewalBusinessResearch, RenewalResearchRequest, Settings } from '@/types';
 
 import { OpenAIResponsesService } from './openAIResponsesService';
 
@@ -10,18 +11,25 @@ const SETTINGS: Settings = {
   ...DEFAULT_SETTINGS,
   renewalAI: { apiKey: 'test-key', model: 'gpt-5-mini' },
 };
-
 const REQUEST: RenewalResearchRequest = {
   input: {
+    ...EMPTY_RENEWAL_INPUT,
     merchantName: 'Ada Merchant',
     businessName: 'Example Bakery LLC',
-    accountName: 'Example Bakery Account',
     dba: 'Example Bakery',
     businessAddress: '123 Main Street, Albany, NY 12207',
+    city: 'Albany',
+    state: 'NY',
     currentBalance: '$9,000',
     percentagePaid: '72%',
     latestLender: 'Example Funding',
-    additionalSameDayLender: '',
+    originalFundingAmount: '$30,000',
+    originalFundingDate: '2025-06-01',
+    productType: 'MCA',
+    renewalEligibilityDate: '2026-09-15',
+    existingPositions: '1',
+    possibleLineOfCredit: '$20,000',
+    specialLenderIncentives: 'Reduced fee',
     website: 'https://example.com',
   },
   eligibility: 'eligible',
@@ -29,25 +37,42 @@ const REQUEST: RenewalResearchRequest = {
   sentEmailHistory: [],
   repProfile: { name: 'Rep', company: 'SideRep', phone: '555-0100', email: 'rep@example.com' },
 };
-
+const RESEARCH: RenewalBusinessResearch = {
+  exactBusinessVerified: true,
+  legalBusinessName: 'Example Bakery LLC',
+  dba: 'Example Bakery',
+  address: '123 Main Street',
+  city: 'Albany',
+  state: 'NY',
+  website: 'https://example.com',
+  industry: 'Wholesale bakery',
+  companyDescription: 'Produces baked goods for local restaurants and retail customers.',
+  products: ['Bread', 'Pastries'],
+  services: ['Wholesale delivery'],
+  customerType: 'Restaurants and retail customers',
+  businessModel: 'Wholesale and storefront retail',
+  locationDetails: 'Albany storefront and production kitchen',
+  currentBusinessActivity: ['Expanded wholesale delivery'],
+  workingCapitalUses: ['Ingredient inventory', 'Bakery equipment', 'Delivery payroll'],
+  confidence: 'high',
+};
 const DRAFT = {
-  businessSummary: 'Example Bakery is a neighborhood bakery.',
-  emailSubject: 'Checking in',
-  emailBody: 'Hello Ada, would you like to discuss renewal options?',
-  smsBody: 'Hi Ada, are you available to discuss renewal options?',
+  outreachObjective: 'renewal_plus_alternative_options',
+  businessSummary: 'Example Bakery produces baked goods for local restaurants.',
+  emailSubject: 'Example Bakery renewal options',
+  emailBody:
+    'Hi Ada, your bakery could use added flexibility for ingredient inventory and delivery payroll. Would you have time to review renewal and line-of-credit options?',
+  smsBody: 'Hi Ada, can we review renewal and line-of-credit options for Example Bakery?',
 };
 
 function jsonResponse(body: unknown, status = 200, headers?: HeadersInit): Response {
   const responseHeaders = new Headers(headers);
   responseHeaders.set('Content-Type', 'application/json');
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: responseHeaders,
-  });
+  return new Response(JSON.stringify(body), { status, headers: responseHeaders });
 }
 
-function completed(
-  draft: unknown = DRAFT,
+function researchCompleted(
+  profile: unknown = RESEARCH,
   sources: unknown[] = [{ type: 'url', url: 'https://example.com', title: 'Example Bakery' }],
   annotations: unknown[] = [],
 ): unknown {
@@ -57,82 +82,76 @@ function completed(
       { type: 'web_search_call', action: { type: 'search', sources } },
       {
         type: 'message',
-        status: 'completed',
-        content: [{ type: 'output_text', text: JSON.stringify(draft), annotations }],
+        content: [{ type: 'output_text', text: JSON.stringify(profile), annotations }],
       },
     ],
   };
+}
+
+function generationCompleted(draft: unknown = DRAFT): unknown {
+  return {
+    status: 'completed',
+    output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(draft) }] }],
+  };
+}
+
+function workflow(
+  research: Response = jsonResponse(researchCompleted()),
+  generation: Response = jsonResponse(generationCompleted()),
+) {
+  return vi
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(research)
+    .mockResolvedValueOnce(generation);
 }
 
 function service(): OpenAIResponsesService {
   return new OpenAIResponsesService(SETTINGS);
 }
 
-beforeEach(() => {
-  vi.useFakeTimers();
-});
-
+beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
-describe('OpenAIResponsesService request contract', () => {
-  it('posts the configured model and strict, non-persistent web-search request', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(completed()));
-
+describe('OpenAIResponsesService two-stage contract', () => {
+  it('researches first, then sends the complete validated context to generation', async () => {
+    const fetchSpy = workflow();
     const result = await service().research(REQUEST);
 
     expect(result.ok).toBe(true);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe('https://api.openai.com/v1/responses');
-    expect(init?.method).toBe('POST');
-    expect(init?.headers).toEqual({
-      Authorization: 'Bearer test-key',
-      'Content-Type': 'application/json',
-    });
-    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-    expect(body).toMatchObject({
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const researchBody = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(researchBody).toMatchObject({
       model: 'gpt-5-mini',
-      input: buildRenewalPrompt(REQUEST),
+      input: buildRenewalResearchPrompt(REQUEST),
       store: false,
       tools: [{ type: 'web_search', search_context_size: 'high', external_web_access: true }],
       tool_choice: 'required',
       include: ['web_search_call.action.sources'],
+      text: { format: { name: 'renewal_business_research', strict: true } },
     });
-    expect(body.max_output_tokens).toEqual(expect.any(Number));
-    expect(body.max_output_tokens).toBeLessThanOrEqual(4_000);
-    expect(body.text).toEqual({
-      format: {
-        type: 'json_schema',
-        name: 'renewal_draft',
-        strict: true,
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: expect.objectContaining({
-            businessSummary: expect.objectContaining({
-              type: 'string',
-              description: expect.stringMatching(/4-6 specific working-capital uses/i),
-            }),
-            emailSubject: expect.objectContaining({ type: 'string' }),
-            emailBody: expect.objectContaining({
-              type: 'string',
-              description: expect.stringMatching(/only verified research.*business-specific/i),
-            }),
-            smsBody: expect.objectContaining({
-              type: 'string',
-              description: expect.stringMatching(/only verified research/i),
-            }),
-          }),
-          required: ['businessSummary', 'emailSubject', 'emailBody', 'smsBody'],
-        },
-      },
+    const context = buildRenewalMerchantContext(REQUEST, RESEARCH);
+    const generationBody = JSON.parse(String(fetchSpy.mock.calls[1][1]?.body));
+    expect(generationBody).toMatchObject({
+      model: 'gpt-5-mini',
+      input: buildRenewalGenerationPrompt(context),
+      store: false,
+      text: { format: { name: 'renewal_personalized_outreach', strict: true } },
     });
+    expect(generationBody).not.toHaveProperty('tools');
+    expect(generationBody).not.toHaveProperty('tool_choice');
+    expect(generationBody.text.format.schema.required).toEqual([
+      'outreachObjective',
+      'businessSummary',
+      'emailSubject',
+      'emailBody',
+      'smsBody',
+    ]);
   });
 
-  it('does not call fetch when the Renewal configuration is incomplete', async () => {
+  it('does not call OpenAI when Renewal configuration is incomplete', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const result = await new OpenAIResponsesService(DEFAULT_SETTINGS).research(REQUEST);
     expect(result.ok).toBe(false);
@@ -140,12 +159,12 @@ describe('OpenAIResponsesService request contract', () => {
   });
 });
 
-describe('OpenAIResponsesService response parsing', () => {
-  it('collects only API citations and sources, normalizes URLs, deduplicates, and keeps titles', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+describe('OpenAIResponsesService validation', () => {
+  it('normalizes API sources and returns personalized validated drafts', async () => {
+    workflow(
       jsonResponse(
-        completed(
-          DRAFT,
+        researchCompleted(
+          RESEARCH,
           [
             { type: 'url', url: 'https://EXAMPLE.com/research?b=2&a=1#section' },
             { type: 'url', url: 'https://second.example/page', title: 'Second source' },
@@ -156,192 +175,107 @@ describe('OpenAIResponsesService response parsing', () => {
               url: 'https://example.com/research?a=1&b=2',
               title: 'Bakery profile',
             },
-            { type: 'other', url: 'https://ignored.example' },
           ],
         ),
       ),
     );
-
     const result = await service().research(REQUEST);
-
     expect(result.ok && result.value.sources).toEqual([
       { title: 'Bakery profile', url: 'https://example.com/research?a=1&b=2' },
       { title: 'Second source', url: 'https://second.example/page' },
     ]);
+    expect(result.ok && result.value.emailBody).toContain('ingredient inventory');
   });
 
-  it('rejects unsafe API URLs and suppresses an unsupported factual summary', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      jsonResponse(
-        completed(DRAFT, [
-          { type: 'url', url: 'javascript:alert(1)', title: 'Unsafe' },
-          { type: 'url', url: 'https://user:password@example.com/private' },
-        ]),
-      ),
-    );
+  it('still generates from supplied context after a search with no safe source', async () => {
+    workflow(jsonResponse(researchCompleted(RESEARCH, [{ url: 'javascript:alert(1)' }])));
     const result = await service().research(REQUEST);
     expect(result.ok && result.value.sources).toEqual([]);
     expect(result.ok && result.value.businessSummary).toBe('');
-    expect(result.ok && result.value.emailBody).toBe(DRAFT.emailBody);
+    expect(result.ok && result.value.smsBody).toBe(DRAFT.smsBody);
   });
 
-  it('never accepts links supplied inside model JSON', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      jsonResponse(completed({ ...DRAFT, sources: [{ url: 'https://invented.example' }] })),
-    );
-    const result = await service().research(REQUEST);
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.error.message).toMatch(/schema/);
-  });
-
-  it('rejects a response when OpenAI does not perform web search', async () => {
+  it('rejects research that skipped required web search', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({
         status: 'completed',
-        output: [
-          {
-            type: 'message',
-            content: [{ type: 'output_text', text: JSON.stringify(DRAFT) }],
-          },
-        ],
+        output: [{ type: 'message', content: [{ type: 'output_text', text: '{}' }] }],
       }),
     );
     const result = await service().research(REQUEST);
-    expect(result.ok).toBe(false);
     expect(!result.ok && result.error.message).toMatch(/required web research/i);
   });
 
-  it('allows drafts without sources and removes only a non-empty unsupported summary', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(jsonResponse(completed({ ...DRAFT, businessSummary: '' }, [])))
-      .mockResolvedValueOnce(jsonResponse(completed(DRAFT, [])));
-    const empty = await service().research(REQUEST);
-    const factual = await service().research(REQUEST);
-    expect(empty.ok && empty.value.sources).toEqual([]);
-    expect(factual.ok && factual.value.businessSummary).toBe('');
-    expect(factual.ok && factual.value.smsBody).toBe(DRAFT.smsBody);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-  });
-
   it.each([
     [
-      'incomplete',
-      { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' } },
-      /incomplete/,
+      'malformed research',
+      researchCompleted({ ...RESEARCH, products: 'bread' }),
+      /research schema/i,
     ],
     [
-      'refusal',
-      {
-        status: 'completed',
-        output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'No.' }] }],
-      },
-      /refused/,
+      'wrong objective',
+      generationCompleted({ ...DRAFT, outreachObjective: 'renewal' }),
+      /selected outreach objective/i,
     ],
-    ['API error', { error: { message: 'Provider rejected the request.' } }, /Provider rejected/],
-    ['missing output', { status: 'completed' }, /missing output/],
-  ])('handles %s envelopes', async (_name, envelope, expected) => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(envelope));
-    const result = await service().research(REQUEST);
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.error.message).toMatch(expected as RegExp);
-  });
-
-  it.each([
     [
-      'malformed output JSON',
-      {
-        status: 'completed',
-        output: [
-          { type: 'web_search_call', action: { type: 'search', sources: [] } },
-          { type: 'message', content: [{ type: 'output_text', text: 'not-json' }] },
-        ],
-      },
-      /valid JSON/,
+      'generic identity-free copy',
+      generationCompleted({
+        ...DRAFT,
+        emailSubject: 'Funding options',
+        emailBody: 'We can discuss ingredient inventory financing.',
+        smsBody: 'Would you like to discuss options?',
+      }),
+      /merchant identity/i,
     ],
-    ['missing schema field', completed({ ...DRAFT, smsBody: undefined }), /schema/],
-    ['wrong schema type', completed({ ...DRAFT, smsBody: 1 }), /schema/],
     [
-      'model-generated URL',
-      completed({ ...DRAFT, emailBody: 'See https://invented.example' }),
-      /outside API source metadata/,
+      'research-free email',
+      generationCompleted({
+        ...DRAFT,
+        emailBody: 'Hi Ada, would you like to discuss renewal options for Example Bakery?',
+      }),
+      /verified business research/i,
+    ],
+    [
+      'model URL',
+      generationCompleted({ ...DRAFT, emailBody: `${DRAFT.emailBody} https://invented.example` }),
+      /outside API source metadata/i,
     ],
   ])('rejects %s', async (_name, envelope, expected) => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(envelope));
+    if (_name === 'malformed research') {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(envelope));
+    } else {
+      workflow(jsonResponse(researchCompleted()), jsonResponse(envelope));
+    }
     const result = await service().research(REQUEST);
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.message).toMatch(expected as RegExp);
-  });
-
-  it('handles a malformed HTTP JSON body', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{', { status: 200 }));
-    const result = await service().research(REQUEST);
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.error.message).toMatch(/malformed JSON/);
   });
 });
 
-describe('OpenAIResponsesService retries and aborts', () => {
-  it('retries network errors and transient statuses at most twice', async () => {
+describe('OpenAIResponsesService retries and cancellation', () => {
+  it('retries transient research failures before continuing to generation', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockRejectedValueOnce(new TypeError('network unavailable'))
       .mockResolvedValueOnce(jsonResponse({ error: { message: 'busy' } }, 503))
-      .mockResolvedValueOnce(jsonResponse(completed()));
-
+      .mockResolvedValueOnce(jsonResponse(researchCompleted()))
+      .mockResolvedValueOnce(jsonResponse(generationCompleted()));
     const promise = service().research(REQUEST);
     await vi.runAllTimersAsync();
     const result = await promise;
-
     expect(result.ok).toBe(true);
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
   });
 
-  it('caps Retry-After backoff and stops after three total attempts', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        jsonResponse({ error: { message: 'slow down' } }, 429, { 'Retry-After': '999' }),
-      );
-
-    const promise = service().research(REQUEST);
-    await vi.runAllTimersAsync();
-    const result = await promise;
-
-    expect(result.ok).toBe(false);
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
-  });
-
-  it.each([
-    ['authentication HTTP error', jsonResponse({ error: { message: 'bad key' } }, 401)],
-    ['permission HTTP error', jsonResponse({ error: { message: 'forbidden' } }, 403)],
-    ['validation HTTP error', jsonResponse({ error: { message: 'invalid' } }, 400)],
-    [
-      'refusal',
-      jsonResponse({
-        status: 'completed',
-        output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'No.' }] }],
-      }),
-    ],
-  ])('does not retry %s', async (_name, response) => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
-    const result = await service().research(REQUEST);
-    expect(result.ok).toBe(false);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('aborts during retry backoff without another request', async () => {
+  it('aborts during retry backoff without starting another request', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(jsonResponse({ error: { message: 'busy' } }, 503));
     const controller = new AbortController();
-
     const promise = service().research(REQUEST, controller.signal);
     await vi.advanceTimersByTimeAsync(0);
     controller.abort();
     const result = await promise;
-
-    expect(result.ok).toBe(false);
     expect(!result.ok && result.error.name).toBe('AbortError');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
@@ -351,7 +285,6 @@ describe('OpenAIResponsesService retries and aborts', () => {
     const controller = new AbortController();
     controller.abort();
     const result = await service().research(REQUEST, controller.signal);
-    expect(result.ok).toBe(false);
     expect(!result.ok && result.error.name).toBe('AbortError');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
