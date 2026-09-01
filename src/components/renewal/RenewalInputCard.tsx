@@ -9,6 +9,7 @@ import {
   StopIcon,
 } from '@/components/ui';
 import { useRenewal } from '@/hooks/useRenewal';
+import { useSettings } from '@/hooks/useSettings';
 import type { RenewalEligibility, RenewalInput, RenewalOutreachType } from '@/types';
 import { cn } from '@/utils';
 
@@ -66,6 +67,7 @@ const ELIGIBILITY: Array<{ value: RenewalEligibility; label: string }> = [
 
 export function RenewalInputCard() {
   const renewal = useRenewal();
+  const { settings } = useSettings();
   const isResearching = renewal.researchPhase === 'researching';
   const canRetry = renewal.researchPhase === 'error' || renewal.researchPhase === 'cancelled';
 
@@ -84,13 +86,30 @@ export function RenewalInputCard() {
                 label={field.label}
                 hint={field.manual ? 'Not saved between sessions.' : undefined}
               >
-                <Input
-                  aria-label={field.label}
-                  type={field.type}
-                  value={renewal.input[field.key]}
-                  placeholder={field.placeholder}
-                  onChange={(event) => renewal.edit(field.key, event.target.value)}
-                />
+                {field.key === 'latestLender' ? (
+                  <>
+                    <Input
+                      aria-label={field.label}
+                      list="siderep-lender-profiles"
+                      value={renewal.input.latestLender}
+                      placeholder="Select or enter a lender"
+                      onChange={(event) => renewal.edit('latestLender', event.target.value)}
+                    />
+                    <datalist id="siderep-lender-profiles">
+                      {settings.lenderProfiles.map((profile) => (
+                        <option key={profile.name} value={profile.name} />
+                      ))}
+                    </datalist>
+                  </>
+                ) : (
+                  <Input
+                    aria-label={field.label}
+                    type={field.type}
+                    value={renewal.input[field.key]}
+                    placeholder={field.placeholder}
+                    onChange={(event) => renewal.edit(field.key, event.target.value)}
+                  />
+                )}
               </Field>
             </div>
           ))}

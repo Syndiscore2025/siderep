@@ -25,6 +25,9 @@ export type {
   RenewalHistoryStore,
 } from './renewal';
 
+export { DEFAULT_LENDER_PROFILES, lenderProfileSchema } from './lender';
+export type { LenderProfile } from './lender';
+
 export type {
   ReportRow,
   ExtractedReport,

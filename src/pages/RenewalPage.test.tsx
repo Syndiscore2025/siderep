@@ -63,7 +63,7 @@ function enterMinimumInput(): void {
   fireEvent.change(screen.getByRole('textbox', { name: 'Merchant first name' }), {
     target: { value: 'Avery' },
   });
-  fireEvent.change(screen.getByRole('textbox', { name: 'Current lender' }), {
+  fireEvent.change(screen.getByRole('combobox', { name: 'Current lender' }), {
     target: { value: 'Example Capital' },
   });
   fireEvent.change(screen.getByRole('textbox', { name: 'Paid in' }), { target: { value: '50%' } });
@@ -93,6 +93,13 @@ describe('RenewalPage', () => {
     expect(screen.getByRole('textbox', { name: 'Merchant first name' })).toHaveValue(
       'Persistent Merchant',
     );
+  });
+
+  it('offers configured lender profiles while allowing an unknown lender entry', async () => {
+    renderPage();
+    const lender = await screen.findByRole('combobox', { name: 'Current lender' });
+    expect(lender).toHaveAttribute('list', 'siderep-lender-profiles');
+    expect(document.querySelector('#siderep-lender-profiles')).toBeInTheDocument();
   });
 
   it('keeps funding details optional while retaining eligibility and manual fallback guidance', async () => {

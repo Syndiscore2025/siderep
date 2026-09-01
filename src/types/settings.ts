@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { EMAIL_DELIVERY_MODES } from './email';
+import { DEFAULT_LENDER_PROFILES, lenderProfileSchema } from './lender';
 
 /**
  * Configuration model.
@@ -34,6 +35,7 @@ export const settingsSchema = z.object({
     phone: z.string().trim().default(''),
     email: z.string().trim().default(''),
   }),
+  lenderProfiles: z.array(lenderProfileSchema).max(100).default(DEFAULT_LENDER_PROFILES),
   renewalAI: z.object({
     apiKey: z.string().default(''),
     model: z.string().trim().default('gpt-5.6-sol'),
@@ -77,6 +79,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 /** Fully-populated default configuration used on first run. */
 export const DEFAULT_SETTINGS: Settings = {
   repProfile: { name: 'Michael', company: '1West', phone: '', email: '' },
+  lenderProfiles: DEFAULT_LENDER_PROFILES,
   renewalAI: { apiKey: '', model: 'gpt-5.6-sol' },
   assistantAI: { apiKey: '', model: 'gpt-4o-mini' },
   ai: {
@@ -108,6 +111,7 @@ export function parseSettings(raw: unknown): Settings {
   const assistantAI = asRecord(input.assistantAI);
   const merged = {
     repProfile: { ...DEFAULT_SETTINGS.repProfile, ...asRecord(input.repProfile) },
+    lenderProfiles: input.lenderProfiles ?? DEFAULT_SETTINGS.lenderProfiles,
     renewalAI: { ...DEFAULT_SETTINGS.renewalAI, ...asRecord(input.renewalAI) },
     assistantAI: {
       ...DEFAULT_SETTINGS.assistantAI,

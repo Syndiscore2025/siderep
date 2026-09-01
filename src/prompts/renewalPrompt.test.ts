@@ -180,7 +180,7 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toContain('"whatTheyDo"');
     expect(prompt).toContain('"originalFundingAmount": "$50,000"');
     expect(prompt).toContain('"possibleLineOfCredit": "$25,000"');
-    expect(prompt).toContain('"specialLenderIncentives": "Reduced fee"');
+    expect(prompt).toContain('"merchantSpecificIncentives": "Reduced fee"');
     expect(prompt).toContain('"objective": "renewal_plus_alternative_options"');
     expect(prompt).toContain('"lenderRules"');
     expect(prompt).toContain('"userNotes": "Keep the CTA low-pressure."');
@@ -220,6 +220,35 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/existing balance can be paid off through the renewal/i);
     expect(prompt).toMatch(/retaining one position\/payment/i);
     expect(prompt).toMatch(/never promise or guarantee approval/i);
+  });
+
+  it('uses customer-facing lender benefits but excludes internal lender guidance', () => {
+    const prompt = generation({
+      input: { ...renewal().input, latestLender: 'PEAC', percentagePaid: '50%' },
+      lenderProfiles: [
+        {
+          name: 'PEAC',
+          productTypes: ['Equipment financing'],
+          standardRenewalThreshold: 55,
+          earlyRenewalThreshold: 45,
+          minimumFundingAgeDays: null,
+          renewalTimingRules: 'Internal timing guidance',
+          payoffBehavior: 'Existing balance may be paid off through renewal.',
+          customerFacingRenewalBenefits: ['Remaining interest may be waived on renewal.'],
+          internalRules: 'Never place this in merchant outreach.',
+          lineOfCreditAvailable: true,
+          termLoanAvailable: false,
+          specialNotes: 'Internal reference only.',
+        },
+      ],
+    });
+
+    expect(prompt).toContain('Remaining interest may be waived on renewal.');
+    expect(prompt).toContain('Existing balance may be paid off through renewal.');
+    expect(prompt).toContain('Equipment financing');
+    expect(prompt).not.toContain('Never place this in merchant outreach.');
+    expect(prompt).not.toContain('Internal reference only.');
+    expect(prompt).toMatch(/eligible for an early renewal review/i);
   });
 
   it('applies not-yet-eligible LOC and term-loan rules only when supported', () => {

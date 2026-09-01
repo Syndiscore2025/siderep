@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { EMPTY_RENEWAL_INPUT } from '@/types';
-import type { RenewalBusinessResearch, RenewalResearchRequest } from '@/types';
+import type { LenderProfile, RenewalBusinessResearch, RenewalResearchRequest } from '@/types';
 
 import { buildRenewalMerchantContext, determineOutreachObjective } from './merchantContext';
 
@@ -29,6 +29,21 @@ const RESEARCH: RenewalBusinessResearch = {
     'Service vehicles',
   ],
   confidence: 'high',
+};
+
+const EXPANSION_PROFILE: LenderProfile = {
+  name: 'Expansion Capital Group',
+  productTypes: ['MCA'],
+  standardRenewalThreshold: 55,
+  earlyRenewalThreshold: 45,
+  minimumFundingAgeDays: 90,
+  renewalTimingRules: 'Review after 90 days.',
+  payoffBehavior: 'Existing balance may be paid off through renewal.',
+  customerFacingRenewalBenefits: ['Additional proceeds may be available.'],
+  internalRules: 'Internal underwriting guidance.',
+  lineOfCreditAvailable: true,
+  termLoanAvailable: false,
+  specialNotes: 'Internal only.',
 };
 
 function request(
@@ -113,14 +128,20 @@ describe('buildRenewalMerchantContext', () => {
       specialLenderIncentives: 'Reduced origination fee',
     });
     expect(context.outreachObjective).toBe('renewal');
-    expect(context.fundingScenario).toEqual({
+    expect(context.fundingScenario).toMatchObject({
       primary: 'renewal_eligible',
       includesLineOfCredit: false,
       includesTermLoan: false,
+      profileLineOfCreditAvailable: false,
+      profileTermLoanAvailable: false,
       payoffSupported: false,
       singlePositionSupported: false,
       expirationUrgencySupported: false,
+      eligibilitySource: 'manual',
+      thresholdUsed: null,
+      earlyRenewal: false,
     });
+    expect(context.lenderProfile).toBeNull();
     expect(context.sentEmailHistory.map((email) => email.subject)).toEqual(['Earlier', 'Later']);
   });
 
@@ -188,6 +209,50 @@ describe('buildRenewalMerchantContext', () => {
       payoffSupported: true,
       singlePositionSupported: true,
       expirationUrgencySupported: true,
+    });
+  });
+
+  it('uses the selected lender profile to determine threshold, early-renewal, and funding-age scenarios', () => {
+    const profileRequest = (input: Partial<RenewalResearchRequest['input']> = {}) =>
+      request(
+        {
+          latestLender: 'Expansion Capital Group',
+          percentagePaid: '46%',
+          originalFundingDate: '2025-01-01',
+          renewalEligibilityDate: '',
+          ...input,
+        },
+        { eligibility: 'not_eligible', lenderProfiles: [EXPANSION_PROFILE] },
+      );
+
+    const early = buildRenewalMerchantContext(profileRequest(), RESEARCH);
+    expect(early.funding.renewalEligibility).toBe('eligible');
+    expect(early.fundingScenario).toMatchObject({
+      primary: 'renewal_eligible',
+      eligibilitySource: 'paid_in_threshold',
+      thresholdUsed: 45,
+      earlyRenewal: true,
+      profileLineOfCreditAvailable: true,
+    });
+    expect(early.lenderProfile).toEqual(EXPANSION_PROFILE);
+
+    const futureDate = buildRenewalMerchantContext(
+      profileRequest({ percentagePaid: '80%', renewalEligibilityDate: '2099-01-01' }),
+      RESEARCH,
+    );
+    expect(futureDate.fundingScenario).toMatchObject({
+      primary: 'not_yet_eligible',
+      eligibilitySource: 'explicit_renewal_date',
+    });
+
+    const tooRecent = buildRenewalMerchantContext(
+      profileRequest({ percentagePaid: '80%', originalFundingDate: new Date().toISOString() }),
+      RESEARCH,
+    );
+    expect(tooRecent.fundingScenario).toMatchObject({
+      primary: 'not_yet_eligible',
+      eligibilitySource: 'funding_age',
+      thresholdUsed: 55,
     });
   });
 });

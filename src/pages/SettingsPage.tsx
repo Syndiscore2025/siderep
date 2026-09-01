@@ -13,6 +13,7 @@ import {
   Toggle,
 } from '@/components/ui';
 import { Diagnostics } from '@/components/settings/Diagnostics';
+import { LenderProfilesCard } from '@/components/settings/LenderProfilesCard';
 import { useResetSettings, useSaveSettings, useSettings } from '@/hooks/useSettings';
 import { createAIService, createEmailService, createRenewalResearchService } from '@/services';
 import {
@@ -155,6 +156,11 @@ export function SettingsPage() {
                 </Field>
               </div>
             </Card>
+
+            <LenderProfilesCard
+              profiles={form.lenderProfiles}
+              onChange={(lenderProfiles) => setForm((current) => ({ ...current, lenderProfiles }))}
+            />
 
             <Card
               title="OpenAI Renewal"

@@ -1,3 +1,5 @@
+import type { LenderProfile } from './lender';
+
 export type RenewalEligibility = 'eligible' | 'not_eligible';
 export type RenewalOutreachType = 'renewal' | 'add_on';
 export type RenewalResearchConfidence = 'high' | 'medium' | 'low';
@@ -95,10 +97,16 @@ export interface RenewalMerchantContext {
     primary: RenewalFundingScenario;
     includesLineOfCredit: boolean;
     includesTermLoan: boolean;
+    profileLineOfCreditAvailable: boolean;
+    profileTermLoanAvailable: boolean;
     payoffSupported: boolean;
     singlePositionSupported: boolean;
     expirationUrgencySupported: boolean;
+    eligibilitySource: 'manual' | 'explicit_renewal_date' | 'paid_in_threshold' | 'funding_age';
+    thresholdUsed: number | null;
+    earlyRenewal: boolean;
   };
+  lenderProfile: LenderProfile | null;
   userNotes: string;
   representative: RenewalRepProfile;
   sentEmailHistory: RenewalSentEmailContext[];
@@ -178,6 +186,7 @@ export interface RenewalResearchRequest {
   repProfile: RenewalRepProfile;
   outreachType: RenewalOutreachType;
   sentEmailHistory: RenewalSentEmailContext[];
+  lenderProfiles?: LenderProfile[];
 }
 
 export const EMPTY_RENEWAL_INPUT: RenewalInput = {

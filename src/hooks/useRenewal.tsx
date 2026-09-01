@@ -311,6 +311,7 @@ export function RenewalProvider({
         {
           input: currentInput,
           eligibility,
+          lenderProfiles: settings.lenderProfiles,
           repProfile: settings.repProfile,
           outreachType: currentCycle?.outreachType ?? outreachType,
           sentEmailHistory: (currentCycle?.sentEmails ?? [])
@@ -341,7 +342,14 @@ export function RenewalProvider({
       setResearchPhase('error');
       setResearchError(toError(error).message);
     }
-  }, [currentCycle, eligibility, outreachType, researchService, settings.repProfile]);
+  }, [
+    currentCycle,
+    eligibility,
+    outreachType,
+    researchService,
+    settings.lenderProfiles,
+    settings.repProfile,
+  ]);
 
   const copyEmail = useCallback(async () => {
     if (!draft || !draftId || copyInFlight.current) return;

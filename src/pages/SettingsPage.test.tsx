@@ -25,6 +25,33 @@ function renderPage() {
 }
 
 describe('SettingsPage Assistant OpenAI configuration', () => {
+  it('manages persistent lender intelligence profiles separately from the outreach form', async () => {
+    renderPage();
+    const heading = await screen.findByRole('heading', { name: 'Lender Intelligence' });
+    const lenderSection = heading.closest('section')!;
+    const lenderCard = within(lenderSection);
+    expect(lenderCard.getByLabelText('Lender name')).toHaveValue('PEAC');
+
+    fireEvent.click(lenderCard.getByRole('button', { name: 'Add lender' }));
+    const lenderNames = lenderCard.getAllByLabelText('Lender name');
+    fireEvent.change(lenderNames[1]!, { target: { value: 'Expansion Capital Group' } });
+    const addedProfile = lenderSection.querySelectorAll('details')[1]!;
+    fireEvent.change(addedProfile.querySelector('input[type="number"]')!, {
+      target: { value: '55' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }));
+
+    await waitFor(async () => {
+      const lender = (await loadSettings()).lenderProfiles.find(
+        (profile) => profile.name === 'Expansion Capital Group',
+      );
+      expect(lender).toMatchObject({
+        name: 'Expansion Capital Group',
+        standardRenewalThreshold: 55,
+      });
+    });
+  });
+
   it('shows separate Renewal and Assistant OpenAI settings without Azure fields', async () => {
     renderPage();
     const assistantHeading = await screen.findByRole('heading', { name: 'OpenAI Assistant' });

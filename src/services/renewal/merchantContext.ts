@@ -1,4 +1,5 @@
 import type {
+  LenderProfile,
   RenewalBusinessResearch,
   RenewalMerchantContext,
   RenewalOutreachObjective,
@@ -52,12 +53,98 @@ function hasFundingValue(value: string): boolean {
   );
 }
 
+function lenderProfileFor(
+  lenderName: string,
+  lenderProfiles: LenderProfile[] | undefined,
+): LenderProfile | null {
+  const normalizedLender = lenderName.trim().toLocaleLowerCase();
+  if (!normalizedLender) return null;
+  return (
+    lenderProfiles?.find(
+      (profile) => profile.name.trim().toLocaleLowerCase() === normalizedLender,
+    ) ?? null
+  );
+}
+
+function percentage(value: string): number | null {
+  const match = value.match(/(?:^|\s)([0-9]{1,3}(?:\.[0-9]+)?)(?:\s*%|$)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
+}
+
+function timestamp(value: string): number | null {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+type EligibilityResolution = Pick<
+  RenewalMerchantContext['fundingScenario'],
+  'eligibilitySource' | 'thresholdUsed' | 'earlyRenewal'
+> & { eligibility: RenewalEligibility };
+
+function resolveEligibility(
+  request: RenewalResearchRequest,
+  profile: LenderProfile | null,
+  now = Date.now(),
+): EligibilityResolution {
+  const explicitDate = timestamp(request.input.renewalEligibilityDate);
+  if (profile && explicitDate !== null) {
+    return {
+      eligibility: explicitDate <= now ? 'eligible' : 'not_eligible',
+      eligibilitySource: 'explicit_renewal_date',
+      thresholdUsed: null,
+      earlyRenewal: false,
+    };
+  }
+
+  const paidIn = percentage(request.input.percentagePaid);
+  const standard = profile?.standardRenewalThreshold ?? null;
+  const early = profile?.earlyRenewalThreshold ?? null;
+  const thresholdUsed =
+    paidIn !== null && standard !== null && paidIn >= standard
+      ? standard
+      : paidIn !== null && early !== null && paidIn >= early
+        ? early
+        : null;
+  if (thresholdUsed !== null) {
+    const fundedAt = timestamp(request.input.originalFundingDate);
+    if (
+      profile?.minimumFundingAgeDays !== null &&
+      profile?.minimumFundingAgeDays !== undefined &&
+      fundedAt !== null &&
+      now - fundedAt < profile.minimumFundingAgeDays * 86_400_000
+    ) {
+      return {
+        eligibility: 'not_eligible',
+        eligibilitySource: 'funding_age',
+        thresholdUsed,
+        earlyRenewal: thresholdUsed === early && thresholdUsed !== standard,
+      };
+    }
+    return {
+      eligibility: 'eligible',
+      eligibilitySource: 'paid_in_threshold',
+      thresholdUsed,
+      earlyRenewal: thresholdUsed === early && thresholdUsed !== standard,
+    };
+  }
+  return {
+    eligibility: request.eligibility,
+    eligibilitySource: 'manual',
+    thresholdUsed: null,
+    earlyRenewal: false,
+  };
+}
+
 export function determineOutreachObjective(
   request: RenewalResearchRequest,
 ): RenewalOutreachObjective {
   const input = request.input;
+  const profile = lenderProfileFor(input.latestLender, request.lenderProfiles);
+  const eligibility = resolveEligibility(request, profile).eligibility;
   if (hasFundingValue(input.existingOutstandingOffer)) return 'existing_outstanding_offer';
-  if (request.eligibility === 'eligible') {
+  if (eligibility === 'eligible') {
     return hasFundingValue(input.possibleLineOfCredit) || hasFundingValue(input.possibleTermLoan)
       ? 'renewal_plus_alternative_options'
       : 'renewal';
@@ -69,16 +156,18 @@ export function determineOutreachObjective(
 
 function fundingScenario(
   request: RenewalResearchRequest,
+  eligibility: EligibilityResolution,
+  profile: LenderProfile | null,
 ): RenewalMerchantContext['fundingScenario'] {
   const input = request.input;
-  const supportText = `${input.specialLenderIncentives} ${input.existingOutstandingOffer}`;
+  const supportText = `${input.specialLenderIncentives} ${input.existingOutstandingOffer} ${profile?.payoffBehavior ?? ''}`;
   const payoffSupported = /\b(?:pay\s*off|payoff|refinanc|consolidat)/i.test(supportText);
   const singlePositionSupported =
     payoffSupported && /(?:^|\D)(?:1|one)(?:\D|$)/i.test(input.existingPositions);
   const expirationUrgencySupported = offerExpirationIsSoon(input.existingOutstandingOffer);
   const primary = hasFundingValue(input.existingOutstandingOffer)
     ? 'outstanding_offer'
-    : request.eligibility === 'eligible'
+    : eligibility.eligibility === 'eligible'
       ? 'renewal_eligible'
       : hasFundingValue(input.possibleLineOfCredit)
         ? 'line_of_credit'
@@ -89,9 +178,14 @@ function fundingScenario(
     primary,
     includesLineOfCredit: hasFundingValue(input.possibleLineOfCredit),
     includesTermLoan: hasFundingValue(input.possibleTermLoan),
+    profileLineOfCreditAvailable: profile?.lineOfCreditAvailable ?? false,
+    profileTermLoanAvailable: profile?.termLoanAvailable ?? false,
     payoffSupported,
     singlePositionSupported,
     expirationUrgencySupported,
+    eligibilitySource: eligibility.eligibilitySource,
+    thresholdUsed: eligibility.thresholdUsed,
+    earlyRenewal: eligibility.earlyRenewal,
   };
 }
 
@@ -114,6 +208,8 @@ export function buildRenewalMerchantContext(
     .map((value) => value.trim())
     .filter(Boolean)
     .join('; ');
+  const lenderProfile = lenderProfileFor(request.input.latestLender, request.lenderProfiles);
+  const eligibility = resolveEligibility(request, lenderProfile);
   return {
     merchant: {
       legalBusinessName: request.input.businessName,
@@ -135,7 +231,7 @@ export function buildRenewalMerchantContext(
       currentBalance: request.input.currentBalance,
       paidInPercentage: request.input.percentagePaid,
       productType: request.input.productType,
-      renewalEligibility: request.eligibility,
+      renewalEligibility: eligibility.eligibility,
       renewalEligibilityDate: request.input.renewalEligibilityDate,
       existingPositions: positions,
       possibleLineOfCredit: request.input.possibleLineOfCredit,
@@ -144,7 +240,8 @@ export function buildRenewalMerchantContext(
       existingOutstandingOffer: request.input.existingOutstandingOffer,
     },
     outreachObjective: determineOutreachObjective(request),
-    fundingScenario: fundingScenario(request),
+    fundingScenario: fundingScenario(request, eligibility, lenderProfile),
+    lenderProfile,
     userNotes: request.input.userNotes,
     representative: { ...request.repProfile },
     sentEmailHistory: [...request.sentEmailHistory].sort(

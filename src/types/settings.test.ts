@@ -12,6 +12,11 @@ describe('parseSettings', () => {
       maxOutputTokens: 6000,
       webSearchEnabled: true,
     });
+    expect(DEFAULT_SETTINGS.lenderProfiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'PEAC', standardRenewalThreshold: 45 }),
+      ]),
+    );
   });
 
   it('returns full defaults for undefined input', () => {
@@ -72,6 +77,35 @@ describe('parseSettings', () => {
   it('trims whitespace on trimmed fields', () => {
     const parsed = parseSettings({ assistantAI: { model: '  gpt-4o  ' } });
     expect(parsed.assistantAI.model).toBe('gpt-4o');
+  });
+
+  it('retains structured lender intelligence profiles', () => {
+    const profile = parseSettings({
+      lenderProfiles: [
+        {
+          name: 'Expansion Capital Group',
+          productTypes: ['MCA'],
+          standardRenewalThreshold: 55,
+          earlyRenewalThreshold: 45,
+          minimumFundingAgeDays: 90,
+          renewalTimingRules: 'Review after 90 days.',
+          payoffBehavior: 'Existing balance may be paid off through renewal.',
+          customerFacingRenewalBenefits: ['Additional proceeds may be available.'],
+          internalRules: 'Internal only.',
+          lineOfCreditAvailable: true,
+          termLoanAvailable: false,
+          specialNotes: 'Do not share.',
+        },
+      ],
+    }).lenderProfiles[0];
+
+    expect(profile).toMatchObject({
+      name: 'Expansion Capital Group',
+      standardRenewalThreshold: 55,
+      earlyRenewalThreshold: 45,
+      minimumFundingAgeDays: 90,
+      lineOfCreditAvailable: true,
+    });
   });
 });
 

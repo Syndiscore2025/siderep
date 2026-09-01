@@ -20,6 +20,7 @@ const log = logger.scope('settings');
 /** Partial patch shape used by `updateSettings`. */
 export interface SettingsPatch {
   repProfile?: Partial<Settings['repProfile']>;
+  lenderProfiles?: Settings['lenderProfiles'];
   renewalAI?: Partial<Settings['renewalAI']>;
   assistantAI?: Partial<Settings['assistantAI']>;
   ai?: Partial<Settings['ai']>;
@@ -32,6 +33,7 @@ export interface SettingsPatch {
 function mergeSettings(base: Settings, patch: SettingsPatch): Settings {
   return {
     repProfile: { ...base.repProfile, ...patch.repProfile },
+    lenderProfiles: patch.lenderProfiles ?? base.lenderProfiles,
     renewalAI: { ...base.renewalAI, ...patch.renewalAI },
     assistantAI: { ...base.assistantAI, ...patch.assistantAI },
     ai: { ...base.ai, ...patch.ai },
