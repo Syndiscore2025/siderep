@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode } from 'react';
+import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import '@/styles/globals.css';
-import { App } from '@/sidepanel/App';
 
 import { AuthGate } from './AuthGate';
+
+const WebApp = lazy(() => import('@/sidepanel/App').then(({ App }) => ({ default: App })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,9 +23,17 @@ if (!container) throw new Error('Root element #root not found');
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <div className="mx-auto h-full w-full max-w-[1440px] overflow-hidden border-x border-edge">
+      <div className="mx-auto h-full w-full max-w-[1600px] overflow-hidden border-x border-edge bg-surface-0 shadow-2xl shadow-black/40">
         <AuthGate>
-          <App />
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center text-sm text-content-muted">
+                Loading your workspace…
+              </div>
+            }
+          >
+            <WebApp platform="web" />
+          </Suspense>
         </AuthGate>
       </div>
     </QueryClientProvider>

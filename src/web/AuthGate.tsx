@@ -17,27 +17,48 @@ interface AuthGateProps {
 
 function AuthCard({ children }: { children: ReactNode }) {
   return (
-    <main className="flex min-h-full items-center justify-center px-4 py-10">
-      <section className="w-full max-w-sm rounded-2xl border border-edge bg-surface-1 p-6 shadow-lg">
-        <div className="mb-5 flex items-center gap-3">
-          <img src="/icons/icon-128.png" alt="" className="size-10 rounded-xl" />
-          <div>
-            <p className="font-semibold text-content-primary">SideRep</p>
-            <p className="text-xs text-content-muted">Sales Assistant</p>
+    <main className="relative flex min-h-full items-center justify-center overflow-hidden px-4 py-10 sm:px-6">
+      <div
+        aria-hidden="true"
+        className="absolute left-1/2 top-0 h-96 w-[48rem] -translate-x-1/2 rounded-full bg-accent/10 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute bottom-[-12rem] right-[-8rem] size-96 rounded-full bg-accent-muted/10 blur-3xl"
+      />
+      <section className="relative w-full max-w-md animate-fade-up rounded-2xl border border-edge-strong/80 bg-surface-1/90 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-8">
+        <div className="mb-7 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-surface-2 ring-1 ring-inset ring-white/5">
+              <img src="/icons/icon-128.png" alt="" className="size-10 rounded-xl" />
+            </div>
+            <div>
+              <p className="text-base font-semibold tracking-tight text-content-primary">SideRep</p>
+              <p className="mt-0.5 text-xs text-content-muted">AI-powered sales workspace</p>
+            </div>
           </div>
+          <span className="rounded-full border border-accent/20 bg-accent-soft px-2.5 py-1 text-[10px] font-semibold text-accent-hover">
+            INVITE ONLY
+          </span>
         </div>
         {children}
+        <div className="mt-7 flex items-center gap-2 border-t border-edge pt-4 text-[11px] text-content-muted">
+          <span className="size-1.5 rounded-full bg-success" />
+          Your workspace data stays on this device.
+        </div>
       </section>
     </main>
   );
 }
 
 const inputClass =
-  'w-full rounded-lg border border-edge bg-surface-2 px-3 py-2 text-content-primary ' +
-  'placeholder:text-content-muted';
+  'mt-1.5 h-11 w-full rounded-xl border border-edge bg-surface-2/80 px-3.5 text-sm ' +
+  'text-content-primary shadow-inner shadow-black/10 placeholder:text-content-muted transition-all ' +
+  'hover:border-edge-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15';
 const buttonClass =
-  'w-full rounded-lg bg-accent px-3 py-2 font-medium text-white transition-colors ' +
-  'hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60';
+  'h-11 w-full rounded-xl bg-gradient-to-b from-accent to-accent-muted px-4 text-sm font-semibold ' +
+  'text-white shadow-md shadow-accent/10 ring-1 ring-inset ring-white/10 transition-all ' +
+  'hover:from-accent-hover hover:to-accent active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60';
 
 export function AuthGate({
   children,
@@ -157,7 +178,9 @@ export function AuthGate({
   if (configurationError || !authClient) {
     return (
       <AuthCard>
-        <h1 className="text-lg font-semibold">Authentication unavailable</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-content-primary">
+          Authentication unavailable
+        </h1>
         <p role="alert" className="mt-2 text-sm text-content-secondary">
           {configurationError ?? 'Web authentication is not configured.'}
         </p>
@@ -178,7 +201,9 @@ export function AuthGate({
   if (initialError) {
     return (
       <AuthCard>
-        <h1 className="text-lg font-semibold">Unable to load your account</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-content-primary">
+          Unable to load your account
+        </h1>
         <p role="alert" className="mt-2 text-sm text-danger">
           {initialError}
         </p>
@@ -196,15 +221,17 @@ export function AuthGate({
   if (session && needsPassword) {
     return (
       <AuthCard>
-        <h1 className="text-lg font-semibold">Set your password</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-content-primary">
+          Set your password
+        </h1>
         <p className="mt-1 text-sm text-content-secondary">
           Choose a password to finish accessing SideRep.
         </p>
         <form className="mt-5 space-y-4" onSubmit={updatePassword}>
-          <label className="block text-sm font-medium">
+          <label className="block text-xs font-semibold text-content-secondary">
             New password
             <input
-              className={`${inputClass} mt-1`}
+              className={inputClass}
               type="password"
               autoComplete="new-password"
               value={password}
@@ -212,10 +239,10 @@ export function AuthGate({
               required
             />
           </label>
-          <label className="block text-sm font-medium">
+          <label className="block text-xs font-semibold text-content-secondary">
             Confirm password
             <input
-              className={`${inputClass} mt-1`}
+              className={inputClass}
               type="password"
               autoComplete="new-password"
               value={confirmation}
@@ -239,13 +266,15 @@ export function AuthGate({
   if (!session) {
     return (
       <AuthCard>
-        <h1 className="text-lg font-semibold">Sign in</h1>
-        <p className="mt-1 text-sm text-content-secondary">Use your SideRep account to continue.</p>
-        <form className="mt-5 space-y-4" onSubmit={signIn}>
-          <label className="block text-sm font-medium">
+        <h1 className="text-xl font-semibold tracking-tight text-content-primary">Sign in</h1>
+        <p className="mt-1.5 text-sm text-content-secondary">
+          Sign in to continue to your private SideRep workspace.
+        </p>
+        <form className="mt-6 space-y-4" onSubmit={signIn}>
+          <label className="block text-xs font-semibold text-content-secondary">
             Email
             <input
-              className={`${inputClass} mt-1`}
+              className={inputClass}
               type="email"
               autoComplete="email"
               value={email}
@@ -253,10 +282,10 @@ export function AuthGate({
               required
             />
           </label>
-          <label className="block text-sm font-medium">
+          <label className="block text-xs font-semibold text-content-secondary">
             Password
             <input
-              className={`${inputClass} mt-1`}
+              className={inputClass}
               type="password"
               autoComplete="current-password"
               value={password}
@@ -280,10 +309,13 @@ export function AuthGate({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div
-        className="flex shrink-0 items-center justify-end gap-3 border-b border-edge bg-surface-1
-          px-4 py-2 text-xs text-content-secondary"
+        className="flex shrink-0 items-center justify-end gap-3 border-b border-edge bg-surface-1/70
+          px-4 py-2.5 text-xs text-content-secondary backdrop-blur-xl md:px-6"
       >
-        <span>{session.user.email ?? 'Authenticated account'}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="size-1.5 shrink-0 rounded-full bg-success" />
+          <span className="truncate">{session.user.email ?? 'Authenticated account'}</span>
+        </span>
         {actionError && (
           <span role="alert" className="text-danger">
             {actionError}
@@ -291,8 +323,8 @@ export function AuthGate({
         )}
         <button
           type="button"
-          className="rounded-md border border-edge px-2.5 py-1 text-content-primary
-            hover:bg-surface-2 disabled:opacity-60"
+          className="rounded-lg border border-edge bg-surface-2/60 px-3 py-1.5 font-medium text-content-primary
+            transition-colors hover:border-edge-strong hover:bg-surface-3 disabled:opacity-60"
           onClick={signOut}
           disabled={busy}
         >
