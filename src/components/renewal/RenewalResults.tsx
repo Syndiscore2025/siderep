@@ -43,9 +43,16 @@ export function RenewalResults() {
           >
             Business summary
           </h3>
-          <p className="whitespace-pre-wrap text-xs text-content-secondary">
-            {draft.businessSummary}
-          </p>
+          {draft.businessSummary ? (
+            <p className="whitespace-pre-wrap text-xs text-content-secondary">
+              {draft.businessSummary}
+            </p>
+          ) : (
+            <p className="text-xs text-warning">
+              No verified web source was returned. The drafts below use only the details you
+              supplied; review them before use.
+            </p>
+          )}
         </section>
 
         {safeSources.length > 0 && (

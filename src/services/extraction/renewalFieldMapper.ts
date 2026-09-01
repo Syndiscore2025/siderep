@@ -19,6 +19,7 @@ export const RENEWAL_FIELD_ALIASES = {
   businessName: ['Business Name', 'Legal Business Name', 'Legal Name'],
   accountName: ['Account Name'],
   dba: ['DBA', 'DBA Name', 'Doing Business As'],
+  businessAddress: ['Business Address', 'Billing Address', 'Merchant Address', 'Street Address'],
   latestLender: ['Most Recent Lender', 'Most Recent Funder', 'Latest Lender', 'Latest Funder'],
   latestFundingDate: ['Most Recent Funding Date', 'Latest Funding Date', 'Funding Date'],
   additionalLender: [
@@ -165,6 +166,7 @@ export function mapRenewalFields(
       businessName: prefer(firstValue(fields, 'businessName'), manual.businessName),
       accountName: prefer(firstValue(fields, 'accountName'), manual.accountName),
       dba: prefer(firstValue(fields, 'dba'), manual.dba),
+      businessAddress: prefer(firstValue(fields, 'businessAddress'), manual.businessAddress),
       currentBalance: normalizeRenewalString(manual.currentBalance),
       percentagePaid: normalizeRenewalString(manual.percentagePaid),
       latestLender: prefer(firstValue(fields, 'latestLender'), manual.latestLender),

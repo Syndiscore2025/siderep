@@ -242,10 +242,11 @@ function parseResponse(value: unknown): Result<RenewalDraft> {
   }
   const content = parseDraftContent(parsed);
   if (!content.ok) return content;
-  if (content.value.businessSummary.trim() && output.value.sources.length === 0) {
-    return err(new Error('A factual business summary requires at least one API-backed source.'));
-  }
-  return ok({ ...content.value, sources: output.value.sources });
+  // Outreach may still use the merchant data explicitly supplied by the rep.
+  // If web search returned no verifiable source, suppress the model's factual
+  // summary rather than blocking otherwise useful email and SMS drafts.
+  const businessSummary = output.value.sources.length ? content.value.businessSummary : '';
+  return ok({ ...content.value, businessSummary, sources: output.value.sources });
 }
 
 export class OpenAIResponsesService implements RenewalResearchService {

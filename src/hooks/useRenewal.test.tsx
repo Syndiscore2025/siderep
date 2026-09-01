@@ -130,6 +130,25 @@ describe('useRenewal', () => {
     expect(result.current.researchError).toMatch(/at least one merchant/i);
   });
 
+  it('allows address-only research and passes the address to the research service', async () => {
+    const research = vi.fn<RenewalResearchService['research']>(async () => ok(DRAFT));
+    const { result } = renderHook(() => useRenewal(), {
+      wrapper: createWrapper(emptyExtraction, researchService(research)),
+    });
+
+    act(() => result.current.edit('businessAddress', '42 Market Street, Denver, CO 80202'));
+    await act(() => result.current.research());
+
+    expect(research).toHaveBeenCalledTimes(1);
+    expect(research.mock.calls[0][0].input).toMatchObject({
+      businessAddress: '42 Market Street, Denver, CO 80202',
+      businessName: '',
+      website: '',
+    });
+    expect(result.current.researchPhase).toBe('complete');
+    expect(result.current.draft).toEqual(DRAFT);
+  });
+
   it('aborts and ignores stale extraction and research completions', async () => {
     const firstExtraction = deferred<Result<ExtractedCustomer>>();
     const secondExtraction = deferred<Result<ExtractedCustomer>>();

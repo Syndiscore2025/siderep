@@ -11,6 +11,7 @@ function renewal(overrides: Partial<RenewalResearchRequest> = {}): RenewalResear
       businessName: 'Acme',
       accountName: '',
       dba: '',
+      businessAddress: '123 Main Street, Albany, NY 12207',
       currentBalance: '$8,000',
       percentagePaid: '',
       latestLender: '',
@@ -29,6 +30,7 @@ describe('buildRenewalPrompt', () => {
   it('includes only populated merchant and representative fields', () => {
     const prompt = buildRenewalPrompt(renewal());
     expect(prompt).toContain('- Business name: Acme');
+    expect(prompt).toContain('- Business address: 123 Main Street, Albany, NY 12207');
     expect(prompt).toContain('- Website: https://acme.example');
     expect(prompt).toContain('- Current balance (manually supplied): $8,000');
     expect(prompt).toContain('- Name: Rae');
@@ -60,6 +62,10 @@ describe('buildRenewalPrompt', () => {
     const prompt = buildRenewalPrompt(renewal());
     expect(prompt).toMatch(/prefer its homepage\/domain/i);
     expect(prompt).toMatch(/keep citations and urls out of the copy-ready email and sms/i);
+  });
+
+  it('uses the address to disambiguate web research', () => {
+    expect(buildRenewalPrompt(renewal())).toMatch(/address to disambiguate/i);
   });
 
   it('uses distinct cycle-level outreach instructions', () => {

@@ -17,6 +17,7 @@ const REQUEST: RenewalResearchRequest = {
     businessName: 'Example Bakery LLC',
     accountName: 'Example Bakery Account',
     dba: 'Example Bakery',
+    businessAddress: '123 Main Street, Albany, NY 12207',
     currentBalance: '$9,000',
     percentagePaid: '72%',
     latestLender: 'Example Funding',
@@ -159,7 +160,7 @@ describe('OpenAIResponsesService response parsing', () => {
     ]);
   });
 
-  it('rejects unsafe API URLs and fails a factual summary when none remain', async () => {
+  it('rejects unsafe API URLs and suppresses an unsupported factual summary', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse(
         completed(DRAFT, [
@@ -169,8 +170,9 @@ describe('OpenAIResponsesService response parsing', () => {
       ),
     );
     const result = await service().research(REQUEST);
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.error.message).toMatch(/API-backed source/);
+    expect(result.ok && result.value.sources).toEqual([]);
+    expect(result.ok && result.value.businessSummary).toBe('');
+    expect(result.ok && result.value.emailBody).toBe(DRAFT.emailBody);
   });
 
   it('never accepts links supplied inside model JSON', async () => {
@@ -182,7 +184,7 @@ describe('OpenAIResponsesService response parsing', () => {
     expect(!result.ok && result.error.message).toMatch(/schema/);
   });
 
-  it('allows an empty summary without sources but requires sources for a non-empty summary', async () => {
+  it('allows drafts without sources and removes only a non-empty unsupported summary', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(jsonResponse(completed({ ...DRAFT, businessSummary: '' }, [])))
@@ -190,7 +192,8 @@ describe('OpenAIResponsesService response parsing', () => {
     const empty = await service().research(REQUEST);
     const factual = await service().research(REQUEST);
     expect(empty.ok && empty.value.sources).toEqual([]);
-    expect(factual.ok).toBe(false);
+    expect(factual.ok && factual.value.businessSummary).toBe('');
+    expect(factual.ok && factual.value.smsBody).toBe(DRAFT.smsBody);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
