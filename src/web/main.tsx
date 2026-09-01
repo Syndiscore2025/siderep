@@ -6,7 +6,7 @@ import '@/styles/globals.css';
 
 import { AuthGate } from './AuthGate';
 
-const WebApp = lazy(() => import('@/sidepanel/App').then(({ App }) => ({ default: App })));
+export const WebApp = lazy(() => import('@/sidepanel/App').then(({ App }) => ({ default: App })));
 
 const queryClient = new QueryClient({
   defaultOptions: {

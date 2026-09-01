@@ -14,6 +14,7 @@ export const capturedPasswordSetupFlow =
 export interface WebAuthSession {
   user: {
     email?: string;
+    passwordConfigured?: boolean;
   };
 }
 
@@ -31,12 +32,22 @@ export interface WebAuthClient {
     unsubscribe(): void;
   };
   signInWithPassword(credentials: { email: string; password: string }): Promise<WebAuthResult>;
-  updateUser(attributes: { password: string }): Promise<WebAuthResult>;
+  updateUser(attributes: {
+    password: string;
+    data?: { password_configured: boolean };
+  }): Promise<WebAuthResult>;
   signOut(): Promise<WebAuthResult>;
 }
 
 function toWebSession(session: Session | null): WebAuthSession | null {
-  return session ? { user: { email: session.user.email } } : null;
+  return session
+    ? {
+        user: {
+          email: session.user.email,
+          passwordConfigured: session.user.user_metadata.password_configured === true,
+        },
+      }
+    : null;
 }
 
 function createAuthAdapter(client: SupabaseClient): WebAuthClient {
