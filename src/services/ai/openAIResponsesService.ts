@@ -1,5 +1,6 @@
 import { buildRenewalGenerationPrompt, buildRenewalResearchPrompt } from '@/prompts';
 import { buildRenewalMerchantContext } from '@/services/renewal/merchantContext';
+import { addressFromGoogleUrl } from '@/services/renewal/googleAddress';
 import type {
   RenewalBusinessResearch,
   RenewalDraft,
@@ -314,15 +315,15 @@ function valuesMatch(left: string, right: string): boolean {
 function verifyResearchIdentity(
   request: RenewalResearchRequest,
   research: RenewalBusinessResearch,
-  hasSource: boolean,
+  sources: RenewalSource[],
 ): boolean {
-  if (!research.exactBusinessVerified || !hasSource) return false;
+  if (!research.exactBusinessVerified || !sources.length) return false;
   const input = request.input;
+  const suppliedAddress =
+    input.businessAddress || addressFromGoogleUrl(input.businessAddressGoogleUrl);
   const websiteMatch = Boolean(input.website && sameHost(input.website, research.website));
   const addressMatch = Boolean(
-    input.businessAddress &&
-    research.address &&
-    valuesMatch(input.businessAddress, research.address),
+    suppliedAddress && research.address && valuesMatch(suppliedAddress, research.address),
   );
   const suppliedNames = [input.businessName, input.dba, input.accountName].filter(Boolean);
   const researchedNames = [research.legalBusinessName, research.dba].filter(Boolean);
@@ -336,7 +337,15 @@ function verifyResearchIdentity(
   const stateConflict = Boolean(input.state && research.state && !stateMatch);
   if (nameConflict || cityConflict || stateConflict) return false;
   const completeLocationMatch = Boolean(input.city && input.state && cityMatch && stateMatch);
-  return websiteMatch || addressMatch || (nameMatch && completeLocationMatch);
+  const googleAddressMatch = Boolean(
+    input.businessAddressGoogleUrl &&
+    nameMatch &&
+    sources.some((source) => {
+      const host = sourceHost(source.url);
+      return host === 'google.com' || host.endsWith('.google.com') || host === 'maps.app.goo.gl';
+    }),
+  );
+  return websiteMatch || addressMatch || googleAddressMatch || (nameMatch && completeLocationMatch);
 }
 
 function stringArray(value: unknown, maxItems: number, maxLength: number): value is string[] {
@@ -508,7 +517,7 @@ function parseResearchResponse(
   const content = parseResearchContent(parsed.value);
   if (!content.ok) return content;
   const sources = rankSources(output.value.sources, request.input.website || content.value.website);
-  const verified = verifyResearchIdentity(request, content.value, sources.length > 0);
+  const verified = verifyResearchIdentity(request, content.value, sources);
   const research = verified
     ? content.value
     : { ...content.value, exactBusinessVerified: false, confidence: 'low' as const };
@@ -587,6 +596,104 @@ function validateRestrictedClaims(
   return ok(content);
 }
 
+function moneyValue(value: string): string {
+  return value.match(/\$\s?[0-9][0-9,]*(?:\.[0-9]{2})?/)?.[0].replace(/[\s,]/g, '') ?? '';
+}
+
+function includesMoney(text: string, amount: string): boolean {
+  return !amount || text.replace(/[\s,]/g, '').includes(amount);
+}
+
+function validateFundingScenario(
+  content: DraftContent,
+  context: RenewalMerchantContext,
+): Result<DraftContent> {
+  const email = content.emailBody;
+  const copy = `${content.emailSubject}\n${content.emailBody}\n${content.smsBody}`;
+  const scenario = context.fundingScenario;
+  if (scenario.primary === 'renewal_eligible') {
+    if (!/(?:reached|at|now).{0,30}renewal eligib|eligible.{0,20}renewal/i.test(email)) {
+      return err(new Error('OpenAI did not state that the merchant reached renewal eligibility.'));
+    }
+    if (context.funding.currentLender && !includesAny(email, [context.funding.currentLender])) {
+      return err(
+        new Error('OpenAI omitted the supplied current lender from eligible renewal outreach.'),
+      );
+    }
+    const payoffLanguage = /\b(?:pay\s*off|payoff|refinanc|consolidat)/i.test(copy);
+    if (scenario.payoffSupported !== payoffLanguage) {
+      return err(new Error('OpenAI used incorrect renewal payoff language.'));
+    }
+    const singlePositionLanguage = /\b(?:one|single)\s+(?:position|payment)\b/i.test(copy);
+    if (scenario.singlePositionSupported !== singlePositionLanguage) {
+      return err(new Error('OpenAI used incorrect single-position language.'));
+    }
+    if (
+      context.funding.specialLenderIncentives &&
+      !includesAny(email, anchors([context.funding.specialLenderIncentives]))
+    ) {
+      return err(new Error('OpenAI omitted the supplied lender-specific renewal incentive.'));
+    }
+  } else if (scenario.primary !== 'outstanding_offer') {
+    if (!/(?:not (?:quite|yet)|haven't|have not).{0,40}renewal|before.{0,30}renewal/i.test(email)) {
+      return err(
+        new Error('OpenAI did not explain that the merchant is not yet renewal eligible.'),
+      );
+    }
+    if (!/(?:additional (?:working )?capital|another funding option)/i.test(email)) {
+      return err(new Error('OpenAI omitted the possible additional working-capital path.'));
+    }
+    if (/(?:review|discuss|offer).{0,20}renewal options?|renewal offer/i.test(email)) {
+      return err(new Error('OpenAI incorrectly pitched a renewal before eligibility.'));
+    }
+  }
+  if (scenario.includesLineOfCredit) {
+    if (!/(?:line of credit|\bLOC\b)/i.test(copy) || !/(?:draw|as needed)/i.test(copy)) {
+      return err(new Error('OpenAI did not explain line-of-credit draw flexibility.'));
+    }
+    if (!includesMoney(copy, moneyValue(context.funding.possibleLineOfCredit))) {
+      return err(new Error('OpenAI omitted the supplied line-of-credit amount.'));
+    }
+  }
+  if (scenario.includesTermLoan) {
+    if (
+      !/(?:term loan|term product)/i.test(email) ||
+      !/(?:payment history|payment track record|worth (?:checking|exploring))/i.test(email)
+    ) {
+      return err(new Error('OpenAI did not frame the term-loan scenario from payment history.'));
+    }
+    if (
+      /(?:better pricing|lower rate|reduced rate)/i.test(copy) &&
+      !/(?:better pricing|lower rate|reduced rate)/i.test(context.funding.specialLenderIncentives)
+    ) {
+      return err(new Error('OpenAI invented unsupported term-loan pricing.'));
+    }
+  }
+  if (scenario.primary === 'outstanding_offer') {
+    if (!/\boffer\b/i.test(email)) {
+      return err(new Error('OpenAI did not make the outstanding offer the outreach focus.'));
+    }
+    if (!includesMoney(email, moneyValue(context.funding.existingOutstandingOffer))) {
+      return err(new Error('OpenAI omitted the supplied outstanding-offer amount.'));
+    }
+    const supportedUrgencyLanguage = /(?:expir|deadline|act now|urgent|limited time)/i.test(copy);
+    const unsupportedUrgencyLanguage = /(?:expires? soon|act now|urgent|limited time)/i.test(copy);
+    if (
+      (scenario.expirationUrgencySupported && !supportedUrgencyLanguage) ||
+      (!scenario.expirationUrgencySupported && unsupportedUrgencyLanguage)
+    ) {
+      return err(new Error('OpenAI used incorrect outstanding-offer urgency.'));
+    }
+  }
+  const approvalSupported = /\b(?:approved|approval)\b/i.test(
+    context.funding.existingOutstandingOffer,
+  );
+  if (!approvalSupported && /(?:guaranteed approval|pre-?approved|approved for)/i.test(copy)) {
+    return err(new Error('OpenAI introduced an unsupported approval claim.'));
+  }
+  return ok(content);
+}
+
 function validatePersonalization(
   content: DraftContent,
   context: RenewalMerchantContext,
@@ -606,6 +713,8 @@ function validatePersonalization(
   }
   const claims = validateRestrictedClaims(content, context);
   if (!claims.ok) return claims;
+  const scenario = validateFundingScenario(content, context);
+  if (!scenario.ok) return scenario;
   if (!context.businessResearch.exactBusinessVerified) {
     if (content.researchFactsUsed.length) {
       return err(

@@ -163,6 +163,22 @@ describe('mapRenewalFields', () => {
     });
   });
 
+  it('accepts a Salesforce Google Maps link as the business address', () => {
+    const link =
+      'https://www.google.com/maps/search/?api=1&query=42+Market+Street%2C+Denver%2C+CO+80202';
+    const result = mapRenewalFields(customer([['Business Address', link]]));
+    expect(result.input.businessAddressGoogleUrl).toContain('google.com/maps/search');
+    expect(result.input.businessAddress).toBe('42 Market Street, Denver, CO 80202');
+  });
+
+  it('retains shortened Google Maps links for the research stage', () => {
+    const result = mapRenewalFields(
+      customer([['Google Business Address Link', 'https://maps.app.goo.gl/AbCdEf123']]),
+    );
+    expect(result.input.businessAddressGoogleUrl).toContain('maps.app.goo.gl/AbCdEf123');
+    expect(result.input.businessAddress).toBe('');
+  });
+
   it('maps a Salesforce business address for research disambiguation', () => {
     const result = mapRenewalFields(
       customer([

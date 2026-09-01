@@ -62,7 +62,7 @@ const DRAFT = {
   businessSummary: 'Example Bakery produces baked goods for local restaurants.',
   emailSubject: 'Example Bakery renewal options',
   emailBody:
-    'Hi Ada, your bakery could use added flexibility for ingredient inventory and delivery payroll. Would you have time to review renewal and line-of-credit options?',
+    'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit for ingredient inventory and delivery payroll. A $20,000 line of credit could also let you draw funds as needed. Would you have time to connect?',
   smsBody:
     "Hi Ada, can we review renewal options for Example Bakery's ingredient inventory and delivery needs?",
 };
@@ -282,6 +282,120 @@ describe('OpenAIResponsesService validation', () => {
     expect(!result.ok && result.error.message).toMatch(/before the exact merchant was verified/i);
   });
 
+  it('uses a shortened Google address link as an exact signal with matching name and source', async () => {
+    const googleAddressRequest: RenewalResearchRequest = {
+      ...REQUEST,
+      input: {
+        ...REQUEST.input,
+        businessAddress: '',
+        businessAddressGoogleUrl: 'https://maps.app.goo.gl/AbCdEf123',
+        city: '',
+        state: '',
+        website: '',
+      },
+    };
+    workflow(
+      jsonResponse(
+        researchCompleted(RESEARCH, [
+          { type: 'url', url: 'https://google.com/maps/place/example-bakery', title: 'Google' },
+        ]),
+      ),
+    );
+    const result = await service().research(googleAddressRequest);
+    expect(result.ok).toBe(true);
+  });
+
+  it.each([
+    [
+      'not-yet-eligible LOC',
+      {
+        ...REQUEST,
+        eligibility: 'not_eligible',
+        input: { ...REQUEST.input, specialLenderIncentives: '' },
+      },
+      {
+        ...DRAFT,
+        outreachObjective: 'line_of_credit',
+        emailSubject: 'Example Bakery working-capital options',
+        emailBody:
+          'Hi Ada, Example Bakery is not quite at the renewal point yet. We may still explore additional working capital through another funding option, including a $20,000 line of credit you can draw as needed for ingredient inventory and delivery payroll.',
+      },
+    ],
+    [
+      'term loan',
+      {
+        ...REQUEST,
+        eligibility: 'not_eligible',
+        input: {
+          ...REQUEST.input,
+          possibleLineOfCredit: '',
+          possibleTermLoan: '36-month term loan',
+          specialLenderIncentives: '',
+        },
+      },
+      {
+        ...DRAFT,
+        outreachObjective: 'term_loan',
+        emailSubject: 'Example Bakery working-capital options',
+        emailBody:
+          'Hi Ada, Example Bakery is not quite at the renewal point yet. We may still explore additional working capital through another funding option. Based on your established payment history, it may be worth checking whether a 36-month term loan is available for ingredient inventory and delivery payroll.',
+      },
+    ],
+    [
+      'expiring outstanding offer',
+      {
+        ...REQUEST,
+        input: {
+          ...REQUEST.input,
+          possibleLineOfCredit: '',
+          specialLenderIncentives: '',
+          existingOutstandingOffer: '$75,000 MCA offer expires soon',
+        },
+      },
+      {
+        ...DRAFT,
+        outreachObjective: 'existing_outstanding_offer',
+        emailSubject: 'Example Bakery offer follow-up',
+        emailBody:
+          'Hi Ada, I am following up because the $75,000 MCA offer for Example Bakery expires soon. The offer could support ingredient inventory and delivery payroll. Would you like to review the details?',
+      },
+    ],
+  ] as const)('accepts a correctly framed %s scenario', async (_name, request, draft) => {
+    workflow(jsonResponse(researchCompleted()), jsonResponse(generationCompleted(draft)));
+    const result = await service().research(request);
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects eligible renewal outreach that omits the current lender', async () => {
+    workflow(
+      jsonResponse(researchCompleted()),
+      jsonResponse(
+        generationCompleted({
+          ...DRAFT,
+          emailBody: DRAFT.emailBody.replace(' with Example Funding', ''),
+        }),
+      ),
+    );
+    const result = await service().research(REQUEST);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/omitted the supplied current lender/i);
+  });
+
+  it('rejects a LOC scenario that omits draw-as-needed flexibility', async () => {
+    workflow(
+      jsonResponse(researchCompleted()),
+      jsonResponse(
+        generationCompleted({
+          ...DRAFT,
+          emailBody: DRAFT.emailBody.replace(' you draw funds as needed', ' provide funds'),
+        }),
+      ),
+    );
+    const result = await service().research(REQUEST);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toMatch(/line-of-credit draw flexibility/i);
+  });
+
   it.each([
     [
       'malformed research',
@@ -307,7 +421,8 @@ describe('OpenAIResponsesService validation', () => {
       'research-free email',
       generationCompleted({
         ...DRAFT,
-        emailBody: 'Hi Ada, would you like to discuss renewal options for Example Bakery?',
+        emailBody:
+          'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
       }),
       /incorporate every selected research fact/i,
     ],

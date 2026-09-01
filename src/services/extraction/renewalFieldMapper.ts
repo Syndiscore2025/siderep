@@ -1,6 +1,8 @@
 import { EMPTY_RENEWAL_INPUT } from '@/types';
 import type { CustomerField, ExtractedCustomer, RenewalInput } from '@/types';
 
+import { addressFromGoogleUrl, normalizeGoogleAddressUrl } from '../renewal/googleAddress';
+
 export const MAX_RENEWAL_STRING_LENGTH = 500;
 export const MAX_RENEWAL_URL_LENGTH = 2048;
 
@@ -22,6 +24,12 @@ export const RENEWAL_FIELD_ALIASES = {
   accountName: ['Account Name'],
   dba: ['DBA', 'DBA Name', 'Doing Business As'],
   businessAddress: ['Business Address', 'Billing Address', 'Merchant Address', 'Street Address'],
+  businessAddressGoogleUrl: [
+    'Google Business Address Link',
+    'Google Address Link',
+    'Google Maps Link',
+    'Business Address URL',
+  ],
   city: ['Business City', 'Billing City', 'Merchant City', 'City'],
   state: ['Business State', 'Billing State', 'Merchant State', 'State'],
   industry: ['Industry', 'Business Industry', 'Industry Type', 'Business Type'],
@@ -102,6 +110,14 @@ function firstValue(fields: CustomerField[], key: AliasKey): string {
   return valuesFor(fields, key)[0] ?? '';
 }
 
+function firstRawValue(fields: CustomerField[], key: AliasKey): string {
+  for (const alias of RENEWAL_FIELD_ALIASES[key]) {
+    const field = fields.find((candidate) => labelKey(candidate.label) === labelKey(alias));
+    if (typeof field?.value === 'string' && field.value.trim()) return field.value.trim();
+  }
+  return '';
+}
+
 function prefer(crawled: string, manual: unknown): string {
   return crawled || normalizeRenewalString(manual);
 }
@@ -150,7 +166,7 @@ export interface RenewalFieldMapping {
   detectedAdditionalLender: boolean;
 }
 
-/** Maps visible Salesforce fields without retaining funding dates. */
+/** Maps visible Salesforce fields without retaining same-day comparison dates. */
 export function mapRenewalFields(
   customer: ExtractedCustomer,
   manual: RenewalInput = EMPTY_RENEWAL_INPUT,
@@ -184,6 +200,20 @@ export function mapRenewalFields(
       normalizeRenewalUrl(manual.website) ??
       normalizeRenewalString(manual.website))
     : (normalizeRenewalUrl(manual.website) ?? normalizeRenewalString(manual.website));
+  const crawledAddressRaw = firstRawValue(fields, 'businessAddress');
+  const manualAddress = normalizeRenewalString(manual.businessAddress);
+  const googleAddressUrl =
+    normalizeGoogleAddressUrl(firstRawValue(fields, 'businessAddressGoogleUrl')) ??
+    normalizeGoogleAddressUrl(crawledAddressRaw) ??
+    normalizeGoogleAddressUrl(manual.businessAddressGoogleUrl) ??
+    normalizeGoogleAddressUrl(manualAddress) ??
+    '';
+  const businessAddress =
+    (normalizeGoogleAddressUrl(crawledAddressRaw)
+      ? ''
+      : normalizeRenewalString(crawledAddressRaw)) ||
+    (normalizeGoogleAddressUrl(manualAddress) ? '' : manualAddress) ||
+    addressFromGoogleUrl(googleAddressUrl);
   const separateMerchantName = [
     firstValue(fields, 'merchantFirstName'),
     firstValue(fields, 'merchantLastName'),
@@ -200,7 +230,8 @@ export function mapRenewalFields(
       businessName: prefer(firstValue(fields, 'businessName'), manual.businessName),
       accountName: prefer(firstValue(fields, 'accountName'), manual.accountName),
       dba: prefer(firstValue(fields, 'dba'), manual.dba),
-      businessAddress: prefer(firstValue(fields, 'businessAddress'), manual.businessAddress),
+      businessAddress,
+      businessAddressGoogleUrl: googleAddressUrl,
       city: prefer(firstValue(fields, 'city'), manual.city),
       state: prefer(firstValue(fields, 'state'), manual.state),
       industry: prefer(firstValue(fields, 'industry'), manual.industry),

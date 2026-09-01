@@ -8,6 +8,7 @@ export type {
   RenewalEligibility,
   RenewalOutreachType,
   RenewalOutreachObjective,
+  RenewalFundingScenario,
   RenewalResearchConfidence,
   RenewalInput,
   RenewalBusinessResearch,

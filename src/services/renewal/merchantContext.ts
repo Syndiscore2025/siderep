@@ -5,6 +5,8 @@ import type {
   RenewalResearchRequest,
 } from '@/types';
 
+import { addressFromGoogleUrl, normalizeGoogleAddressUrl } from './googleAddress';
+
 function splitMerchantName(value: string): { firstName: string; lastName: string } {
   const parts = value.trim().split(/\s+/).filter(Boolean);
   return { firstName: parts[0] ?? '', lastName: parts.slice(1).join(' ') };
@@ -29,20 +31,67 @@ function addressParts(value: string): { city: string; state: string } {
   return { city: parts.at(-2) ?? '', state: stateAndZip };
 }
 
+function offerExpirationIsSoon(value: string): boolean {
+  if (/\b(?:expires?\s+soon|today|tomorrow|this week)\b/i.test(value)) return true;
+  const match = value.match(
+    /\b(?:20[0-9]{2}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}\/[0-9]{1,2}\/20[0-9]{2})\b/,
+  );
+  if (!match) return false;
+  const expiration = Date.parse(match[0]);
+  if (!Number.isFinite(expiration)) return false;
+  const days = (expiration - Date.now()) / 86_400_000;
+  return days >= 0 && days <= 14;
+}
+
+function hasFundingValue(value: string): boolean {
+  const normalized = value.trim().toLocaleLowerCase();
+  return Boolean(
+    normalized &&
+    !/^(?:no|none|n\/?a|not available|unavailable|false|0|unknown|tbd)$/.test(normalized),
+  );
+}
+
 export function determineOutreachObjective(
   request: RenewalResearchRequest,
 ): RenewalOutreachObjective {
   const input = request.input;
-  if (input.existingOutstandingOffer.trim()) return 'existing_outstanding_offer';
-  if (request.outreachType === 'add_on') return 'additional_position';
+  if (hasFundingValue(input.existingOutstandingOffer)) return 'existing_outstanding_offer';
   if (request.eligibility === 'eligible') {
-    return input.possibleLineOfCredit.trim() || input.possibleTermLoan.trim()
+    return hasFundingValue(input.possibleLineOfCredit) || hasFundingValue(input.possibleTermLoan)
       ? 'renewal_plus_alternative_options'
       : 'renewal';
   }
-  if (input.possibleLineOfCredit.trim()) return 'line_of_credit';
-  if (input.possibleTermLoan.trim()) return 'term_loan';
-  return 'additional_working_capital';
+  if (hasFundingValue(input.possibleLineOfCredit)) return 'line_of_credit';
+  if (hasFundingValue(input.possibleTermLoan)) return 'term_loan';
+  return request.outreachType === 'add_on' ? 'additional_position' : 'additional_working_capital';
+}
+
+function fundingScenario(
+  request: RenewalResearchRequest,
+): RenewalMerchantContext['fundingScenario'] {
+  const input = request.input;
+  const supportText = `${input.specialLenderIncentives} ${input.existingOutstandingOffer}`;
+  const payoffSupported = /\b(?:pay\s*off|payoff|refinanc|consolidat)/i.test(supportText);
+  const singlePositionSupported =
+    payoffSupported && /(?:^|\D)(?:1|one)(?:\D|$)/i.test(input.existingPositions);
+  const expirationUrgencySupported = offerExpirationIsSoon(input.existingOutstandingOffer);
+  const primary = hasFundingValue(input.existingOutstandingOffer)
+    ? 'outstanding_offer'
+    : request.eligibility === 'eligible'
+      ? 'renewal_eligible'
+      : hasFundingValue(input.possibleLineOfCredit)
+        ? 'line_of_credit'
+        : hasFundingValue(input.possibleTermLoan)
+          ? 'term_loan'
+          : 'not_yet_eligible';
+  return {
+    primary,
+    includesLineOfCredit: hasFundingValue(input.possibleLineOfCredit),
+    includesTermLoan: hasFundingValue(input.possibleTermLoan),
+    payoffSupported,
+    singlePositionSupported,
+    expirationUrgencySupported,
+  };
 }
 
 export function buildRenewalMerchantContext(
@@ -50,7 +99,9 @@ export function buildRenewalMerchantContext(
   businessResearch: RenewalBusinessResearch,
 ): RenewalMerchantContext {
   const name = splitMerchantName(request.input.merchantName);
-  const address = addressParts(request.input.businessAddress);
+  const googleAddressUrl = normalizeGoogleAddressUrl(request.input.businessAddressGoogleUrl) ?? '';
+  const businessAddress = request.input.businessAddress || addressFromGoogleUrl(googleAddressUrl);
+  const address = addressParts(businessAddress);
   const positions = [request.input.existingPositions, request.input.additionalSameDayLender]
     .map((value) => value.trim())
     .filter(Boolean)
@@ -61,7 +112,8 @@ export function buildRenewalMerchantContext(
       dba: request.input.dba || request.input.accountName,
       merchantFirstName: name.firstName,
       merchantLastName: name.lastName,
-      address: request.input.businessAddress,
+      address: businessAddress || googleAddressUrl,
+      googleAddressUrl,
       city: request.input.city || address.city,
       state: request.input.state || address.state,
       website: request.input.website,
@@ -84,6 +136,7 @@ export function buildRenewalMerchantContext(
       existingOutstandingOffer: request.input.existingOutstandingOffer,
     },
     outreachObjective: determineOutreachObjective(request),
+    fundingScenario: fundingScenario(request),
     representative: { ...request.repProfile },
     sentEmailHistory: [...request.sentEmailHistory].sort(
       (left, right) => Date.parse(left.sentAt) - Date.parse(right.sentAt),

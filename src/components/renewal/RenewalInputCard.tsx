@@ -18,6 +18,7 @@ const FIELDS: Array<{
   placeholder?: string;
   type?: 'text' | 'url';
   manual?: boolean;
+  wide?: boolean;
 }> = [
   { key: 'merchantName', label: 'Merchant name' },
   { key: 'businessName', label: 'Business name' },
@@ -31,6 +32,14 @@ const FIELDS: Array<{
   },
   { key: 'city', label: 'City', manual: true },
   { key: 'state', label: 'State', manual: true },
+  {
+    key: 'businessAddressGoogleUrl',
+    label: 'Google business address link',
+    placeholder: 'https://www.google.com/maps/…',
+    type: 'url',
+    manual: true,
+    wide: true,
+  },
   { key: 'website', label: 'Website', placeholder: 'https://…', type: 'url' },
   { key: 'industry', label: 'Industry', manual: true },
   { key: 'currentBalance', label: 'Current balance', manual: true },
@@ -66,19 +75,20 @@ export function RenewalInputCard() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           {FIELDS.map((field) => (
-            <Field
-              key={field.key}
-              label={field.label}
-              hint={field.manual ? 'Not saved between sessions.' : undefined}
-            >
-              <Input
-                aria-label={field.label}
-                type={field.type}
-                value={renewal.input[field.key]}
-                placeholder={field.placeholder}
-                onChange={(event) => renewal.edit(field.key, event.target.value)}
-              />
-            </Field>
+            <div key={field.key} className={field.wide ? 'sm:col-span-2' : undefined}>
+              <Field
+                label={field.label}
+                hint={field.manual ? 'Not saved between sessions.' : undefined}
+              >
+                <Input
+                  aria-label={field.label}
+                  type={field.type}
+                  value={renewal.input[field.key]}
+                  placeholder={field.placeholder}
+                  onChange={(event) => renewal.edit(field.key, event.target.value)}
+                />
+              </Field>
+            </div>
           ))}
         </div>
 

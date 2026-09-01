@@ -56,6 +56,7 @@ export type {
   RecordCopiedRenewalEmailResult,
 } from './renewal/renewalHistoryService';
 export { buildRenewalMerchantContext, determineOutreachObjective } from './renewal/merchantContext';
+export { addressFromGoogleUrl, normalizeGoogleAddressUrl } from './renewal/googleAddress';
 
 export {
   MessagingExtractionService,
