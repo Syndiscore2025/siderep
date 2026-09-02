@@ -137,7 +137,7 @@ const DRAFT_SCHEMA = {
       type: 'string',
       maxLength: 500,
       description:
-        'A concise, copy-ready SMS tailored with only verified research or explicitly supplied merchant details; no URLs.',
+        'A concise, copy-ready SMS that opens with the time-of-day greeting and merchant first name, then "This is <representative.name> with <representative.company>." before the pitch; tailored with only verified research or explicitly supplied merchant details; no URLs.',
     },
   },
   required: DRAFT_KEYS,
@@ -788,6 +788,18 @@ function greetingMatchesLocalTime(text: string, greeting: string, merchantFirstN
   return !expected || firstLine(text).startsWith(expected);
 }
 
+/** SMS must read "<greeting> <merchant>, This is <rep> with <company>." before the pitch. */
+function smsIntroducesRepresentative(text: string, context: RenewalMerchantContext): boolean {
+  const name = comparable(context.representative.name);
+  if (!name) return true;
+  const company = comparable(context.representative.company);
+  const prefix = comparable(`${context.greeting} ${context.merchant.merchantFirstName}`);
+  const opening = firstLine(text);
+  const rest = opening.startsWith(prefix) ? opening.slice(prefix.length).trim() : opening;
+  const intro = company ? `this is ${name} with ${company}` : `this is ${name}`;
+  return rest.startsWith(intro);
+}
+
 const PLEASE = /\bplease\b/i;
 const THANK_YOU = /\bthank(?:s| you)\b/i;
 const STOCK_THANK_YOU = /\bthank(?:s| you) for (?:your time|taking a look)\b/i;
@@ -829,6 +841,14 @@ function validateChannelDetails(
     return err(
       new Error(
         `OpenAI did not open both channels with the merchant's local-time greeting "${context.greeting} ${merchant}".`,
+      ),
+    );
+  }
+  if (!smsIntroducesRepresentative(content.smsBody, context)) {
+    const company = context.representative.company.trim();
+    return err(
+      new Error(
+        `OpenAI SMS must introduce the representative right after the greeting: "This is ${context.representative.name.trim()}${company ? ` with ${company}` : ''}."`,
       ),
     );
   }

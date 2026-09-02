@@ -228,6 +228,10 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/email must begin with the line "Good morning Jordan,"/i);
     expect(prompt).toMatch(/SMS must begin with "Good morning Jordan,"/i);
     expect(prompt).toMatch(/do not use "Hi", "Hello", or "Hey" as the greeting/i);
+    expect(prompt).toMatch(
+      /SMS introduction: the SMS must open with "Good morning Jordan, This is Rae\." exactly/i,
+    );
+    expect(prompt).toMatch(/do not write "it is", "my name is", or "I am" in place of "This is"/i);
     expect(prompt).toMatch(/include the word "please" in the bank-statement request/i);
     expect(prompt).toMatch(
       /natural, specific "thank you" in the body of both the email and the SMS/i,
@@ -268,6 +272,16 @@ describe('buildRenewalPrompt', () => {
       /SMS:.*business bank statements to rae@1west\.com" \(or a quick reply\) rather than a call/i,
     );
     expect(prompt).toMatch(/representative email belongs only inside the bank-statement sentence/i);
+    expect(prompt).toMatch(
+      /SMS introduction: the SMS must open with "Good morning Jordan, This is Rae with 1West\." exactly/i,
+    );
+    expect(prompt).toMatch(/SMS:.*then introduce yourself with "This is Rae with 1West\."/i);
+  });
+
+  it('skips the SMS introduction when no representative name is set', () => {
+    const prompt = generation({ repProfile: { name: '', company: '', phone: '', email: '' } });
+    expect(prompt).not.toContain('SMS introduction');
+    expect(prompt).not.toContain('introduce yourself');
   });
 
   it('passes Settings custom instructions through as style-only guidance', () => {
