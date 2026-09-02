@@ -96,6 +96,21 @@ describe('buildRenewalPrompt', () => {
     expect(buildRenewalResearchPrompt(renewal())).toMatch(/address to disambiguate/i);
   });
 
+  it('requires scouting real sources and forbids guessing from the business name', () => {
+    const prompt = buildRenewalResearchPrompt(renewal());
+    expect(prompt).toContain('BUSINESS SCOUTING & RESEARCH — REQUIRED BEFORE WRITING OUTREACH:');
+    expect(prompt).toMatch(
+      /do not guess a merchant's business model, products, services, customers, or likely uses of capital from the business name alone/i,
+    );
+    expect(prompt).toMatch(/never fill them from what the name implies/i);
+    expect(prompt).toMatch(/research the official website first/i);
+    expect(prompt).toMatch(
+      /research public business profiles: Google Maps, Google Business Profile, Yelp, BBB, LinkedIn/i,
+    );
+    expect(prompt).toMatch(/not from the category its name suggests/i);
+    expect(buildRenewalResearchPrompt(renewal(), false)).not.toMatch(/BUSINESS SCOUTING/);
+  });
+
   it('searches with all identity fields and required business-location combinations', () => {
     const prompt = buildRenewalResearchPrompt(renewal());
     expect(prompt).toMatch(/legal business name, account name, DBA\/business name/i);
@@ -200,6 +215,15 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/125-225 words in most cases, without a rigid word cap/i);
     expect(prompt).toMatch(/not as a mechanical email summary/i);
     expect(prompt).toMatch(/do not append a signature/i);
+  });
+
+  it('forbids name-based inference wording and model-written sign-offs', () => {
+    const prompt = generation();
+    expect(prompt).toMatch(/never infer what the business does from its name/i);
+    expect(prompt).toMatch(/"Based on your business name", "Judging from the company name"/i);
+    expect(prompt).toMatch(/do not describe what the business does, sells, or serves/i);
+    expect(prompt).toMatch(/Sign-off: do not add one/i);
+    expect(prompt).toMatch(/signature block is appended automatically after generation/i);
   });
 
   it('requires ranked, research-specific capital-use bullets and a bank-statement CTA', () => {

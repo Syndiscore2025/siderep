@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { EmailDraft } from '@/types';
 
-import { buildGmailComposeUrl, encodeRawMessage } from './gmailService';
+import { buildGmailComposeUrl, encodeRawMessage, openGmailCompose } from './gmailService';
 
 /** Decodes the base64url `raw` field back to the RFC 2822 message string. */
 function decodeRaw(encoded: string): string {
@@ -34,6 +34,55 @@ describe('buildGmailComposeUrl', () => {
     expect(url.searchParams.has('cc')).toBe(false);
     expect(url.searchParams.has('su')).toBe(false);
     expect(url.searchParams.has('body')).toBe(false);
+  });
+});
+
+describe('openGmailCompose', () => {
+  const chromeGlobal = globalThis as unknown as { chrome: typeof chrome };
+  const composeUrl = 'https://mail.google.com/mail/?view=cm&to=dana%40acme.com';
+
+  afterEach(() => {
+    delete (chromeGlobal.chrome as unknown as Record<string, unknown>).tabs;
+    delete (chromeGlobal.chrome as unknown as Record<string, unknown>).windows;
+  });
+
+  function installTabs(existing: chrome.tabs.Tab[]) {
+    const query = vi.fn(async () => existing);
+    const update = vi.fn(async () => undefined);
+    const create = vi.fn(async () => undefined);
+    const focus = vi.fn(async () => undefined);
+    Object.assign(chromeGlobal.chrome, {
+      tabs: { query, update, create },
+      windows: { update: focus },
+    });
+    return { query, update, create, focus };
+  }
+
+  it('redirects an already-open Gmail tab and focuses its window', async () => {
+    const tabs = installTabs([{ id: 7, windowId: 3 } as chrome.tabs.Tab]);
+    await openGmailCompose(composeUrl);
+    expect(tabs.query).toHaveBeenCalledWith({ url: 'https://mail.google.com/*' });
+    expect(tabs.update).toHaveBeenCalledWith(7, { url: composeUrl, active: true });
+    expect(tabs.focus).toHaveBeenCalledWith(3, { focused: true });
+    expect(tabs.create).not.toHaveBeenCalled();
+  });
+
+  it('opens a new tab only when no Gmail tab exists', async () => {
+    const tabs = installTabs([]);
+    await openGmailCompose(composeUrl);
+    expect(tabs.update).not.toHaveBeenCalled();
+    expect(tabs.create).toHaveBeenCalledWith({ url: composeUrl });
+  });
+
+  it('falls back to a named window outside the extension and reports blocked pop-ups', async () => {
+    const opened = {} as Window;
+    const open = vi.spyOn(window, 'open').mockImplementation(() => opened);
+    await openGmailCompose(composeUrl);
+    expect(open).toHaveBeenCalledWith(composeUrl, 'siderep-gmail');
+    expect(opened.opener).toBeNull();
+
+    open.mockImplementation(() => null);
+    await expect(openGmailCompose(composeUrl)).rejects.toThrow(/popup blocked/i);
   });
 });
 

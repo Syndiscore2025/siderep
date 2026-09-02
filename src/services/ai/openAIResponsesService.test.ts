@@ -732,6 +732,38 @@ describe('OpenAIResponsesService validation', () => {
       /signature to the SMS/i,
     ],
     [
+      'an email sign-off with the representative name',
+      { ...DRAFT, emailBody: `${DRAFT.emailBody}\n\nBest regards,\nRep\nSideRep` },
+      /email sign-off; the signature is appended after generation/i,
+    ],
+    [
+      'a bare email sign-off line',
+      { ...DRAFT, emailBody: `${DRAFT.emailBody}\n\nThanks,` },
+      /email sign-off; the signature is appended after generation/i,
+    ],
+    [
+      'a business type inferred from the business name',
+      {
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace(
+          'Based on what I saw about the bakery, here are a few places extra capital could go:',
+          'Based on your business name, here are a few places extra capital could go:',
+        ),
+      },
+      /inferred the business type from the business name/i,
+    ],
+    [
+      'an SMS that judges the business by its name',
+      {
+        ...DRAFT,
+        smsBody: DRAFT.smsBody.replace(
+          'With ingredient inventory',
+          'Judging from the company name, with ingredient inventory',
+        ),
+      },
+      /inferred the business type from the business name/i,
+    ],
+    [
       'SMS bullets',
       {
         ...DRAFT,
@@ -933,7 +965,7 @@ describe('OpenAIResponsesService validation', () => {
         ...DRAFT,
         emailBody: DRAFT.emailBody.replace(
           'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
-          'Thank you.',
+          'Hope the wholesale season is going well.',
         ),
         smsBody: 'Hi Ada, Example Bakery has renewal options with Example Funding.',
       }),

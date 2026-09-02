@@ -16,6 +16,9 @@ const log = logger.scope('gmail');
 
 const GMAIL_SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 const GMAIL_COMPOSE_URL = 'https://mail.google.com/mail/';
+const GMAIL_TAB_PATTERN = 'https://mail.google.com/*';
+/** Named target so repeated web-app opens reuse one Gmail window. */
+const GMAIL_WINDOW_NAME = 'siderep-gmail';
 
 /** Base64url-encodes a UTF-8 string (Gmail's `raw` message format). */
 function toBase64Url(input: string): string {
@@ -47,6 +50,31 @@ export function buildGmailComposeUrl(draft: EmailDraft): string {
   if (draft.subject) params.set('su', draft.subject);
   if (draft.body) params.set('body', draft.body);
   return `${GMAIL_COMPOSE_URL}?${params.toString()}`;
+}
+
+/**
+ * Opens a compose URL in the user's Gmail. In the extension this reuses the
+ * first open Gmail tab (e.g. a pinned inbox) and focuses it; a new tab is only
+ * created when none exists. In the web app it falls back to a named window and
+ * throws when a pop-up blocker prevents it.
+ */
+export async function openGmailCompose(url: string): Promise<void> {
+  const tabs = typeof chrome !== 'undefined' ? chrome.tabs : undefined;
+  if (tabs?.query && tabs.update && tabs.create) {
+    const [existing] = await tabs.query({ url: GMAIL_TAB_PATTERN });
+    if (existing?.id !== undefined) {
+      await tabs.update(existing.id, { url, active: true });
+      if (existing.windowId !== undefined && chrome.windows?.update) {
+        await chrome.windows.update(existing.windowId, { focused: true });
+      }
+      return;
+    }
+    await tabs.create({ url });
+    return;
+  }
+  const opened = window.open(url, GMAIL_WINDOW_NAME);
+  if (!opened) throw new Error('Popup blocked');
+  opened.opener = null;
 }
 
 export interface EmailService {

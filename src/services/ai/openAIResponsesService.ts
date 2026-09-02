@@ -886,6 +886,10 @@ const GENERIC_USE_TERMS = [
 ] as const;
 const BANK_STATEMENT_REQUEST =
   /\b(?:3|three)\s*(?:-|–|to|or)\s*(?:4|four)\s+months(?:['’])?\s+(?:of\s+)?(?:(?:recent|latest|most recent)\s+)?(?:business\s+)?bank statements?\b/i;
+const EMAIL_SIGN_OFF =
+  /^(?:best|best regards|kind regards|warm regards|regards|thanks|thank you|many thanks|sincerely|cheers|talk soon|all the best|respectfully)$/i;
+const NAME_INFERENCE =
+  /\b(?:based on|judging (?:from|by)|going (?:off|by)|given|inferring from)\s+(?:your|the|its)\s+(?:business |company |shop |brand )?name\b|\b(?:your|the) (?:business |company |shop |brand )?name (?:alone |itself )?(?:suggests|implies|indicates|tells me|says)\b|\bas the name (?:implies|suggests)\b|\bwith a name like\b/i;
 const CALL_REQUEST =
   /\b(?:(?:quick|brief|short|phone|intro|introductory)\s+call|hop on a call|jump on a call|schedule a call|set up a call|book a call|give you a call|(?:a|the) call (?:this|next) week|call (?:me|you)|worth a call|for a call|time to (?:talk|chat)|open to a call|chat by phone|10 minutes to talk|find time to talk)\b/i;
 
@@ -1009,11 +1013,12 @@ function validatePersonalization(
   ) {
     return err(new Error('OpenAI omitted the supplied current lender from outreach.'));
   }
-  const trailingSmsLines = content.smsBody
-    .split('\n')
-    .map((line) => comparable(line))
-    .filter(Boolean)
-    .slice(-3);
+  const trailingLines = (text: string) =>
+    text
+      .split('\n')
+      .map((line) => comparable(line).replace(/,$/, ''))
+      .filter(Boolean)
+      .slice(-3);
   const signatureParts = [
     context.representative.name,
     context.representative.company,
@@ -1022,8 +1027,20 @@ function validatePersonalization(
   ]
     .map(comparable)
     .filter(Boolean);
-  if (signatureParts.some((part) => trailingSmsLines.includes(part))) {
+  if (signatureParts.some((part) => trailingLines(content.smsBody).includes(part))) {
     return err(new Error('OpenAI appended a representative signature to the SMS.'));
+  }
+  const trailingEmailLines = trailingLines(content.emailBody);
+  if (
+    signatureParts.some((part) => trailingEmailLines.includes(part)) ||
+    trailingEmailLines.some((line) => EMAIL_SIGN_OFF.test(line))
+  ) {
+    return err(
+      new Error('OpenAI added an email sign-off; the signature is appended after generation.'),
+    );
+  }
+  if (NAME_INFERENCE.test(`${content.emailBody}\n${content.smsBody}`)) {
+    return err(new Error('OpenAI inferred the business type from the business name.'));
   }
   const claims = validateRestrictedClaims(content, context);
   if (!claims.ok) return claims;

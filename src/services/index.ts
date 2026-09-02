@@ -32,6 +32,7 @@ export {
   createEmailService,
   buildGmailComposeUrl,
   encodeRawMessage,
+  openGmailCompose,
 } from './email/gmailService';
 export type { EmailService } from './email/gmailService';
 export { generateEmail, parseGeneratedEmail } from './email/emailGenerationService';
@@ -62,6 +63,7 @@ export { resolveBusinessLocator } from './renewal/businessLocator';
 export type { BusinessLocatorKind, ResolvedBusinessLocator } from './renewal/businessLocator';
 export { addressFromGoogleUrl, normalizeGoogleAddressUrl } from './renewal/googleAddress';
 export { applySubjectPrefix } from './renewal/subjectPrefix';
+export { applyEmailSignature, buildEmailSignature } from './renewal/emailSignature';
 
 export {
   MessagingExtractionService,

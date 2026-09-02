@@ -18,11 +18,14 @@ import {
 } from '@/hooks/useRenewalHistory';
 import { useSettings } from '@/hooks/useSettings';
 import {
+  applyEmailSignature,
   applySubjectPrefix,
+  buildEmailSignature,
   buildGmailComposeUrl,
   createExtractionService,
   createRenewalResearchService,
   mapRenewalFields,
+  openGmailCompose,
   resolveBusinessLocator,
   searchRenewalAccounts,
 } from '@/services';
@@ -347,6 +350,7 @@ export function RenewalProvider({
       setDraft({
         ...result.value,
         emailSubject: applySubjectPrefix(settings.prompts.subjectPrefix, result.value.emailSubject),
+        emailBody: applyEmailSignature(result.value.emailBody, buildEmailSignature(settings)),
       });
       setDraftId(createId());
       setResearchPhase('complete');
@@ -356,15 +360,7 @@ export function RenewalProvider({
       setResearchPhase('error');
       setResearchError(toError(error).message);
     }
-  }, [
-    currentCycle,
-    eligibility,
-    outreachType,
-    researchService,
-    settings.lenderProfiles,
-    settings.prompts.subjectPrefix,
-    settings.repProfile,
-  ]);
+  }, [currentCycle, eligibility, outreachType, researchService, settings]);
 
   const deliverEmail = useCallback(
     async (delivery: RenewalDelivery) => {
@@ -398,11 +394,7 @@ export function RenewalProvider({
             subject: draft.emailSubject,
             body: draft.emailBody,
           });
-          if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
-            await chrome.tabs.create({ url });
-          } else if (!window.open(url, '_blank', 'noopener')) {
-            throw new Error('Popup blocked');
-          }
+          await openGmailCompose(url);
         }
       } catch {
         setHistoryStatus({

@@ -25,6 +25,8 @@ const DRAFT: RenewalDraft = {
   emailBody: 'Hello Acme, renewal options are available.',
   smsBody: 'Acme, let us discuss renewal options.',
 };
+/** Default Rep Profile (Michael / 1West) signature appended after generation. */
+const SIGNED_EMAIL_BODY = `${DRAFT.emailBody}\n\nBest regards,\nMichael\n1West`;
 
 const extractionService: RenewalExtractionService = {
   extractActiveCustomer: vi.fn(async () => ok({ displayName: '', extractedAt: '', fields: [] })),
@@ -166,7 +168,7 @@ describe('RenewalPage', () => {
       'Acme',
     );
     expect(within(generatedOutreach).getByRole('textbox', { name: 'Email' })).toHaveValue(
-      DRAFT.emailBody,
+      SIGNED_EMAIL_BODY,
     );
     expect(within(generatedOutreach).getByRole('textbox', { name: 'Text Message' })).toHaveValue(
       DRAFT.smsBody,
@@ -217,7 +219,7 @@ describe('RenewalPage', () => {
     enterMinimumInput();
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
 
-    expect(await screen.findByRole('textbox', { name: 'Email' })).toHaveValue(DRAFT.emailBody);
+    expect(await screen.findByRole('textbox', { name: 'Email' })).toHaveValue(SIGNED_EMAIL_BODY);
     expect(screen.queryByRole('heading', { name: 'Sources' })).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Text Message' })).toHaveValue(DRAFT.smsBody);
 

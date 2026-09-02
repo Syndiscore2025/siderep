@@ -404,7 +404,10 @@ export function SettingsPage() {
                     placeholder="1West - "
                   />
                 </Field>
-                <Field label="Email signature" hint="Appended to generated emails.">
+                <Field
+                  label="Email signature"
+                  hint="Appended to every generated Renewal email. Leave blank to sign with your Rep Profile name, company, phone, and email."
+                >
                   <Textarea
                     rows={3}
                     value={form.prompts.signature}

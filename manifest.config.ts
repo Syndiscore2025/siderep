@@ -101,5 +101,12 @@ export default defineManifest({
     ].join('; '),
   },
 
-  host_permissions: [...SALESFORCE_MATCHES, 'https://api.openai.com/*'],
+  // `mail.google.com` lets "Open in Gmail" find and reuse an already-open Gmail
+  // tab via `chrome.tabs.query({ url })` instead of opening a new one each time.
+  // The extension never reads Gmail page content.
+  host_permissions: [
+    ...SALESFORCE_MATCHES,
+    'https://api.openai.com/*',
+    'https://mail.google.com/*',
+  ],
 });

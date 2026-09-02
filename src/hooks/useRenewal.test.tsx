@@ -157,7 +157,10 @@ describe('useRenewal', () => {
       website: '',
     });
     expect(result.current.researchPhase).toBe('complete');
-    expect(result.current.draft).toEqual(DRAFT);
+    expect(result.current.draft).toEqual({
+      ...DRAFT,
+      emailBody: `${DRAFT.emailBody}\n\nBest regards,\nMichael\n1West`,
+    });
   });
 
   it('passes a Google Maps locator through the established Maps field', async () => {
@@ -278,6 +281,7 @@ describe('useRenewal', () => {
   it('applies the subject prefix once, allows draft edits, and opens Gmail with the merchant email', async () => {
     await saveSettings({
       ...DEFAULT_SETTINGS,
+      repProfile: { name: 'Rae', company: '1West', phone: '555-0100', email: 'rae@1west.example' },
       prompts: { ...DEFAULT_SETTINGS.prompts, subjectPrefix: '1West - ' },
     });
     const open = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window);
@@ -298,6 +302,9 @@ describe('useRenewal', () => {
     });
     await act(() => result.current.renewal.research());
     expect(result.current.renewal.draft?.emailSubject).toBe('1West - Renewal options');
+    expect(result.current.renewal.draft?.emailBody).toBe(
+      `${DRAFT.emailBody}\n\nBest regards,\nRae\n1West\n555-0100\nrae@1west.example`,
+    );
 
     await act(() => result.current.renewal.research());
     expect(result.current.renewal.draft?.emailSubject).toBe('1West - Already prefixed');
@@ -308,11 +315,7 @@ describe('useRenewal', () => {
     expect(result.current.renewal.draftId).not.toBe(generatedDraftId);
 
     await act(() => result.current.renewal.openInGmail());
-    expect(open).toHaveBeenCalledWith(
-      expect.stringContaining('mail.google.com'),
-      '_blank',
-      'noopener',
-    );
+    expect(open).toHaveBeenCalledWith(expect.stringContaining('mail.google.com'), 'siderep-gmail');
     const composeUrl = new URL(open.mock.calls[0][0] as string);
     expect(composeUrl.searchParams.get('to')).toBe('owner@acme.example');
     expect(composeUrl.searchParams.get('su')).toBe('1West - Already prefixed');
@@ -324,6 +327,35 @@ describe('useRenewal', () => {
     });
     expect(result.current.renewal.historyStatus.message).toBe(
       'Email opened in Gmail and saved locally.',
+    );
+  });
+
+  it('prefers the custom signature and never appends it twice', async () => {
+    await saveSettings({
+      ...DEFAULT_SETTINGS,
+      prompts: { ...DEFAULT_SETTINGS.prompts, signature: 'Talk soon,\nRae | 1West' },
+    });
+    const research = vi
+      .fn<RenewalResearchService['research']>()
+      .mockResolvedValueOnce(ok(DRAFT))
+      .mockResolvedValueOnce(
+        ok({ ...DRAFT, emailBody: `${DRAFT.emailBody}\n\nTalk soon,\nRae | 1West` }),
+      );
+    const { result } = renderHook(() => ({ renewal: useRenewal(), settings: useSettings() }), {
+      wrapper: createWrapper(emptyExtraction, researchService(research)),
+    });
+    await waitFor(() =>
+      expect(result.current.settings.settings.prompts.signature).toBe('Talk soon,\nRae | 1West'),
+    );
+    act(() => enterMinimumInput(result.current.renewal.edit));
+
+    await act(() => result.current.renewal.research());
+    expect(result.current.renewal.draft?.emailBody).toBe(
+      `${DRAFT.emailBody}\n\nTalk soon,\nRae | 1West`,
+    );
+    await act(() => result.current.renewal.research());
+    expect(result.current.renewal.draft?.emailBody).toBe(
+      `${DRAFT.emailBody}\n\nTalk soon,\nRae | 1West`,
     );
   });
 
