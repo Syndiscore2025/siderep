@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { EMPTY_RENEWAL_INPUT } from '@/types';
 import type { LenderProfile, RenewalBusinessResearch, RenewalResearchRequest } from '@/types';
 
-import { buildRenewalMerchantContext, determineOutreachObjective } from './merchantContext';
+import {
+  buildRenewalMerchantContext,
+  determineOutreachObjective,
+  merchantGreeting,
+} from './merchantContext';
 
 const RESEARCH: RenewalBusinessResearch = {
   exactBusinessVerified: true,
@@ -95,7 +99,56 @@ describe('determineOutreachObjective', () => {
   });
 });
 
+describe('merchantGreeting', () => {
+  it.each([
+    ['NY', '2026-09-02T13:30:00Z', 'Good morning'],
+    ['New York', '2026-09-02T13:30:00Z', 'Good morning'],
+    ['ny', '2026-09-02T16:30:00Z', 'Good afternoon'],
+    ['NY', '2026-09-02T21:30:00Z', 'Good evening'],
+    ['CA', '2026-09-02T21:30:00Z', 'Good afternoon'],
+    ['CA', '2026-09-02T13:30:00Z', 'Good morning'],
+    ['TX', '2026-09-02T16:30:00Z', 'Good morning'],
+    ['HI', '2026-09-02T21:30:00Z', 'Good morning'],
+    ['AZ', '2026-09-03T00:30:00Z', 'Good evening'],
+  ])('resolves %s at %s to %s', (state, instant, expected) => {
+    expect(merchantGreeting(state, new Date(instant))).toBe(expected);
+  });
+
+  it('falls back to the local clock when the state is unknown', () => {
+    const now = new Date('2026-09-02T13:30:00Z');
+    const expected =
+      now.getHours() < 12
+        ? 'Good morning'
+        : now.getHours() < 17
+          ? 'Good afternoon'
+          : 'Good evening';
+    expect(merchantGreeting('', now)).toBe(expected);
+    expect(merchantGreeting('Atlantis', now)).toBe(expected);
+  });
+});
+
 describe('buildRenewalMerchantContext', () => {
+  it('resolves greeting from the merchant state and tone from the request', () => {
+    vi.useFakeTimers({ now: new Date('2026-09-02T22:30:00Z') });
+    try {
+      expect(buildRenewalMerchantContext(request(), RESEARCH)).toMatchObject({
+        greeting: 'Good afternoon',
+        tone: 'professional',
+      });
+      expect(
+        buildRenewalMerchantContext(request({}, { tone: ' friendly ' }), RESEARCH),
+      ).toMatchObject({ greeting: 'Good afternoon', tone: 'friendly' });
+      expect(
+        buildRenewalMerchantContext(
+          request({ businessAddress: '', state: 'FL' }, { tone: '' }),
+          RESEARCH,
+        ),
+      ).toMatchObject({ greeting: 'Good evening', tone: 'professional' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('builds the complete structured context and sorts email history', () => {
     const context = buildRenewalMerchantContext(
       request(

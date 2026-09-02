@@ -131,7 +131,7 @@ const DRAFT_SCHEMA = {
       type: 'string',
       maxLength: 4_000,
       description:
-        'A copy-ready plain-text email: greeting, 1-2 sentences on the funding situation, a lead-in, 3-5 "- " bullets each tying one research-specific capital use to a revenue or cash-flow outcome, and a closing ask for 3-4 months of business bank statements; no citations, URLs, or call requests.',
+        'A copy-ready plain-text email: the supplied time-of-day greeting with the merchant first name, 1-2 sentences on the funding situation, a lead-in, 3-5 "- " bullets each tying one research-specific capital use to a revenue or cash-flow outcome, and a polite closing ask (please, thank you) for 3-4 months of business bank statements; no citations, URLs, or call requests.',
     },
     smsBody: {
       type: 'string',
@@ -765,17 +765,34 @@ function validateFundingScenario(
   return ok(content);
 }
 
+function firstLine(text: string): string {
+  return comparable(text.split('\n').find((line) => line.trim()) ?? '');
+}
+
 function greetingUsesMerchantName(text: string, merchantFirstName: string): boolean {
   const name = comparable(merchantFirstName);
   if (!name) return true;
-  const greeting = comparable(text.split('\n').find((line) => line.trim()) ?? '');
+  const greeting = firstLine(text);
   return [
     name,
     `hi ${name}`,
     `hello ${name}`,
     `good morning ${name}`,
     `good afternoon ${name}`,
+    `good evening ${name}`,
   ].some((prefix) => greeting.startsWith(prefix));
+}
+
+function greetingMatchesLocalTime(text: string, greeting: string, merchantFirstName: string) {
+  const expected = comparable(`${greeting} ${merchantFirstName}`);
+  return !expected || firstLine(text).startsWith(expected);
+}
+
+const PLEASE = /\bplease\b/i;
+const THANK_YOU = /\bthank(?:s| you)\b/i;
+
+function usesManners(text: string): boolean {
+  return PLEASE.test(text) && THANK_YOU.test(text);
 }
 
 function suppliedMoneyValues(context: RenewalMerchantContext): Set<string> {
@@ -802,6 +819,19 @@ function validateChannelDetails(
     !greetingUsesMerchantName(content.smsBody, merchant)
   ) {
     return err(new Error('OpenAI did not address the merchant by first name in both greetings.'));
+  }
+  if (
+    !greetingMatchesLocalTime(content.emailBody, context.greeting, merchant) ||
+    !greetingMatchesLocalTime(content.smsBody, context.greeting, merchant)
+  ) {
+    return err(
+      new Error(
+        `OpenAI did not open both channels with the merchant's local-time greeting "${context.greeting} ${merchant}".`,
+      ),
+    );
+  }
+  if (!usesManners(content.emailBody) || !usesManners(content.smsBody)) {
+    return err(new Error('OpenAI outreach must say please and thank you in both email and SMS.'));
   }
   const representative = comparable(context.representative.name);
   if (

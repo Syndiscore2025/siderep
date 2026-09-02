@@ -70,7 +70,7 @@ const DRAFT = {
   businessSummary: 'Example Bakery produces baked goods for local restaurants.',
   emailSubject: 'Example Bakery renewal options',
   emailBody: [
-    'Hi Ada,',
+    'Good morning Ada,',
     '',
     'Example Bakery has reached renewal eligibility with Example Funding, and the reduced-fee benefit still applies. A $20,000 line of credit is also an option that lets you draw funds as needed.',
     '',
@@ -80,13 +80,13 @@ const DRAFT = {
     '- Bakery equipment upgrades that let the production kitchen fill larger wholesale runs',
     '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
     '',
-    'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+    'If that is useful, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
   ].join('\n'),
   smsBody:
-    'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding, and the reduced fee still applies. With ingredient inventory and delivery payroll to cover between restaurant invoices, extra capital could keep production steady. If it helps, send over 3-4 months of business bank statements and I will see what is available.',
+    'Good morning Ada, Example Bakery has reached renewal eligibility with Example Funding, and the reduced fee still applies. With ingredient inventory and delivery payroll to cover between restaurant invoices, extra capital could keep production steady. If it helps, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
 };
 const FALLBACK_EMAIL_BODY = [
-  'Hi Ada,',
+  'Good morning Ada,',
   '',
   'Example Bakery has reached renewal eligibility with Example Funding, and the reduced-fee benefit still applies. A $20,000 line of credit is also an option that lets you draw funds as needed.',
   '',
@@ -95,10 +95,10 @@ const FALLBACK_EMAIL_BODY = [
   '- Restocking your best sellers ahead of the busiest weeks of the year',
   '- Handling a repair or replacement before it interrupts sales',
   '',
-  'Send over 3-4 months of business bank statements and I will see what is available.',
+  'Please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
 ].join('\n');
 const FALLBACK_SMS_BODY =
-  'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. If extra capital would help, send over 3-4 months of business bank statements and I will see what is available.';
+  'Good morning Ada, Example Bakery has reached renewal eligibility with Example Funding. If extra capital would help, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.';
 
 function jsonResponse(body: unknown, status = 200, headers?: HeadersInit): Response {
   const responseHeaders = new Headers(headers);
@@ -152,7 +152,7 @@ function service(): OpenAIResponsesService {
   return new OpenAIResponsesService(SETTINGS);
 }
 
-beforeEach(() => vi.useFakeTimers());
+beforeEach(() => vi.useFakeTimers({ now: new Date('2026-09-02T13:30:00Z') }));
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -525,7 +525,7 @@ describe('OpenAIResponsesService validation', () => {
         outreachObjective: 'line_of_credit',
         emailSubject: 'Example Bakery working-capital options',
         emailBody: [
-          'Hi Ada,',
+          'Good morning Ada,',
           '',
           'Example Bakery is not quite at the renewal point yet with Example Funding, but another funding option may still provide additional working capital. A $20,000 line of credit would let you draw funds as needed rather than taking a lump sum.',
           '',
@@ -534,10 +534,10 @@ describe('OpenAIResponsesService validation', () => {
           '- Delivery payroll covered on time while restaurant invoices are still clearing',
           '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
           '',
-          'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+          'If that is useful, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
         ].join('\n'),
         smsBody:
-          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but a $20,000 line of credit could cover ingredient inventory and delivery payroll as needed. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
+          'Good morning Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but a $20,000 line of credit could cover ingredient inventory and delivery payroll as needed. If that helps, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
       },
     ],
     [
@@ -557,7 +557,7 @@ describe('OpenAIResponsesService validation', () => {
         outreachObjective: 'term_loan',
         emailSubject: 'Example Bakery working-capital options',
         emailBody: [
-          'Hi Ada,',
+          'Good morning Ada,',
           '',
           'Example Bakery is not quite at the renewal point yet with Example Funding, but another funding option may still provide additional working capital. Based on your established payment history, it may be worth checking whether a 36-month term loan is available.',
           '',
@@ -566,10 +566,10 @@ describe('OpenAIResponsesService validation', () => {
           '- Delivery payroll covered on time while restaurant invoices are still clearing',
           '- Bakery equipment upgrades that let the production kitchen fill larger wholesale runs',
           '',
-          'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+          'If that is useful, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
         ].join('\n'),
         smsBody:
-          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but with your payment history a 36-month term loan may be worth checking for ingredient inventory and delivery payroll. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
+          'Good morning Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but with your payment history a 36-month term loan may be worth checking for ingredient inventory and delivery payroll. If that helps, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
       },
     ],
     [
@@ -588,7 +588,7 @@ describe('OpenAIResponsesService validation', () => {
         outreachObjective: 'existing_outstanding_offer',
         emailSubject: 'Example Bakery offer follow-up',
         emailBody: [
-          'Hi Ada,',
+          'Good morning Ada,',
           '',
           'I am following up with Example Funding because the $75,000 MCA offer for Example Bakery expires soon.',
           '',
@@ -597,10 +597,10 @@ describe('OpenAIResponsesService validation', () => {
           '- Delivery payroll covered on time while restaurant invoices are still clearing',
           '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
           '',
-          'If you want to move on it, send over 3-4 months of business bank statements and I will confirm the details.',
+          'If you want to move on it, please send over 3-4 months of business bank statements and I will confirm the details. Thank you for your time.',
         ].join('\n'),
         smsBody:
-          'Hi Ada, the $75,000 MCA offer for Example Bakery with Example Funding expires soon and could cover ingredient inventory and delivery payroll. If you want to move on it, send over 3-4 months of business bank statements and I will confirm the details.',
+          'Good morning Ada, the $75,000 MCA offer for Example Bakery with Example Funding expires soon and could cover ingredient inventory and delivery payroll. If you want to move on it, please send over 3-4 months of business bank statements and I will confirm the details. Thank you for your time.',
       },
     ],
   ] as const)('accepts a correctly framed %s scenario', async (_name, request, draft) => {
@@ -619,7 +619,7 @@ describe('OpenAIResponsesService validation', () => {
       uses: ['Carrier payments', 'Fuel purchases', 'Driver payroll', 'Bridging receivables'],
       facts: ['Carrier payments', 'Fuel purchases'],
       email: [
-        'Hi Luis,',
+        'Good morning Luis,',
         '',
         'Summit Freight has reached renewal eligibility with Example Funding, so this is a good time to look at renewal options.',
         '',
@@ -628,9 +628,9 @@ describe('OpenAIResponsesService validation', () => {
         '- Fuel purchases covered up front instead of waiting on receivables to clear',
         '- Driver payroll kept steady through slower invoice weeks so dispatch never stalls',
         '',
-        'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+        'If that is useful, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
       ].join('\n'),
-      sms: 'Hi Luis, it is Michael with 1West. Summit Freight has reached renewal eligibility with Example Funding, and since carrier payments and fuel purchases hit before invoices clear, a renewal could keep loads moving. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
+      sms: 'Good morning Luis, it is Michael with 1West. Summit Freight has reached renewal eligibility with Example Funding, and since carrier payments and fuel purchases hit before invoices clear, a renewal could keep loads moving. If that helps, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
     },
     {
       industry: 'dog grooming',
@@ -641,7 +641,7 @@ describe('OpenAIResponsesService validation', () => {
       uses: ['Grooming tables', 'Dryers', 'Pet-care products', 'Groomer staffing'],
       facts: ['Grooming tables', 'Pet-care products'],
       email: [
-        'Hi Maya,',
+        'Good morning Maya,',
         '',
         'Paws & Polish has reached renewal eligibility with Example Funding, so renewal options are on the table.',
         '',
@@ -650,9 +650,9 @@ describe('OpenAIResponsesService validation', () => {
         '- Pet-care products kept fully stocked so retail sales continue between grooming visits',
         '- Groomer staffing covered during busy seasons so more appointments can be booked',
         '',
-        'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+        'If that is useful, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
       ].join('\n'),
-      sms: 'Hi Maya, it is Michael with 1West. Paws & Polish has reached renewal eligibility with Example Funding, and a renewal could help with grooming tables or keeping pet-care products stocked. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
+      sms: 'Good morning Maya, it is Michael with 1West. Paws & Polish has reached renewal eligibility with Example Funding, and a renewal could help with grooming tables or keeping pet-care products stocked. If that helps, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
     },
     {
       industry: 'commercial contracting',
@@ -668,7 +668,7 @@ describe('OpenAIResponsesService validation', () => {
       ],
       facts: ['Project materials', 'Subcontractor costs'],
       email: [
-        'Hi Devon,',
+        'Good morning Devon,',
         '',
         'Stonebridge Contracting has reached renewal eligibility with Example Funding, so renewal options are worth a look.',
         '',
@@ -677,9 +677,9 @@ describe('OpenAIResponsesService validation', () => {
         '- Subcontractor costs paid on time so trades stay committed to your jobs',
         '- Equipment rentals covered across overlapping projects so no site sits idle',
         '',
-        'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+        'If that is useful, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
       ].join('\n'),
-      sms: 'Hi Devon, it is Michael with 1West. Stonebridge Contracting has reached renewal eligibility with Example Funding, and a renewal could cover project materials or subcontractor costs before a job is billed. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
+      sms: 'Good morning Devon, it is Michael with 1West. Stonebridge Contracting has reached renewal eligibility with Example Funding, and a renewal could cover project materials or subcontractor costs before a job is billed. If that helps, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
     },
   ])('accepts distinct, research-grounded %s outreach', async (industryCase) => {
     const research = {
@@ -938,8 +938,46 @@ describe('OpenAIResponsesService validation', () => {
     ],
     [
       'incorrect merchant greeting',
-      generationCompleted({ ...DRAFT, emailBody: DRAFT.emailBody.replace('Hi Ada', 'Hi Rep') }),
+      generationCompleted({
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace('Good morning Ada', 'Good morning Rep'),
+      }),
       /merchant by first name in both greetings/i,
+    ],
+    [
+      'a greeting that ignores the merchant local time',
+      generationCompleted({
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace('Good morning Ada', 'Hi Ada'),
+      }),
+      /local-time greeting "Good morning Ada"/i,
+    ],
+    [
+      'an SMS greeting for the wrong time of day',
+      generationCompleted({
+        ...DRAFT,
+        smsBody: DRAFT.smsBody.replace('Good morning Ada', 'Good evening Ada'),
+      }),
+      /local-time greeting "Good morning Ada"/i,
+    ],
+    [
+      'an email without please and thank you',
+      generationCompleted({
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace(
+          'please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+          'send over 3-4 months of business bank statements and I will see what is available.',
+        ),
+      }),
+      /must say please and thank you in both email and SMS/i,
+    ],
+    [
+      'an SMS without a thank you',
+      generationCompleted({
+        ...DRAFT,
+        smsBody: DRAFT.smsBody.replace(' Thank you for your time.', ''),
+      }),
+      /must say please and thank you in both email and SMS/i,
     ],
     [
       'incorrect paid-in percentage',
@@ -964,10 +1002,11 @@ describe('OpenAIResponsesService validation', () => {
       generationCompleted({
         ...DRAFT,
         emailBody: DRAFT.emailBody.replace(
-          'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
-          'Hope the wholesale season is going well.',
+          'If that is useful, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+          'Hope the wholesale season is going well, and thank you for your time; please enjoy the rest of the week.',
         ),
-        smsBody: 'Hi Ada, Example Bakery has renewal options with Example Funding.',
+        smsBody:
+          'Good morning Ada, Example Bakery has renewal options with Example Funding. Thank you for your time, and please enjoy the rest of the week.',
       }),
       /clear call to action/i,
     ],
@@ -1031,7 +1070,8 @@ describe('OpenAIResponsesService validation', () => {
       'research-free SMS',
       generationCompleted({
         ...DRAFT,
-        smsBody: 'Hi Ada, can we review renewal options for Example Bakery?',
+        smsBody:
+          'Good morning Ada, can we please review renewal options for Example Bakery? Thank you.',
       }),
       /SMS did not use any selected business research/i,
     ],

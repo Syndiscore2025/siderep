@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildRenewalMerchantContext } from '@/services';
 import { EMPTY_RENEWAL_INPUT } from '@/types';
@@ -58,6 +58,10 @@ function renewal(overrides: Partial<RenewalResearchRequest> = {}): RenewalResear
 function generation(overrides: Partial<RenewalResearchRequest> = {}): string {
   return buildRenewalGenerationPrompt(buildRenewalMerchantContext(renewal(overrides), RESEARCH));
 }
+
+// 09:30 in Albany, NY so the resolved merchant greeting is deterministic.
+beforeEach(() => vi.useFakeTimers({ now: new Date('2026-09-02T13:30:00Z') }));
+afterEach(() => vi.useRealTimers());
 
 describe('buildRenewalPrompt', () => {
   it('includes only populated merchant and representative fields', () => {
@@ -215,6 +219,33 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/125-225 words in most cases, without a rigid word cap/i);
     expect(prompt).toMatch(/not as a mechanical email summary/i);
     expect(prompt).toMatch(/do not append a signature/i);
+  });
+
+  it('requires the merchant local-time greeting, manners, and the configured tone', () => {
+    const prompt = generation();
+    expect(prompt).toContain('TONE AND COURTESY (required):');
+    expect(prompt).toMatch(/write the email and SMS in a professional tone/i);
+    expect(prompt).toMatch(/email must begin with the line "Good morning Jordan,"/i);
+    expect(prompt).toMatch(/SMS must begin with "Good morning Jordan,"/i);
+    expect(prompt).toMatch(/do not use "Hi", "Hello", or "Hey" as the greeting/i);
+    expect(prompt).toMatch(/include the word "please" in the bank-statement request/i);
+    expect(prompt).toMatch(/natural "thank you" in the body of both the email and the SMS/i);
+    expect(prompt).toContain('"greeting": "Good morning"');
+
+    expect(generation({ tone: 'warm and direct' })).toMatch(
+      /write the email and SMS in a warm and direct tone/i,
+    );
+    expect(generation({ tone: 'warm and direct' })).toContain('"tone": "warm and direct"');
+  });
+
+  it('resolves the greeting from the merchant time zone, not the rep clock', () => {
+    vi.setSystemTime(new Date('2026-09-02T22:30:00Z'));
+    expect(generation()).toMatch(/"Good evening Jordan,"/);
+    expect(
+      generation({
+        input: { ...renewal().input, businessAddress: '1 Pier Road, Los Angeles, CA 90001' },
+      }),
+    ).toMatch(/"Good afternoon Jordan,"/);
   });
 
   it('forbids name-based inference wording and model-written sign-offs', () => {

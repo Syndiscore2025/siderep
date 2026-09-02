@@ -58,7 +58,11 @@ export type {
   RecordCopiedRenewalEmailInput,
   RecordCopiedRenewalEmailResult,
 } from './renewal/renewalHistoryService';
-export { buildRenewalMerchantContext, determineOutreachObjective } from './renewal/merchantContext';
+export {
+  buildRenewalMerchantContext,
+  determineOutreachObjective,
+  merchantGreeting,
+} from './renewal/merchantContext';
 export { resolveBusinessLocator } from './renewal/businessLocator';
 export type { BusinessLocatorKind, ResolvedBusinessLocator } from './renewal/businessLocator';
 export { addressFromGoogleUrl, normalizeGoogleAddressUrl } from './renewal/googleAddress';

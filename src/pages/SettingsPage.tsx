@@ -387,7 +387,10 @@ export function SettingsPage() {
 
             <Card title="Prompts">
               <div className="space-y-3">
-                <Field label="Default tone">
+                <Field
+                  label="Default tone"
+                  hint="Steers the writing style of Assistant replies and generated Renewal email/SMS drafts (for example: professional, warm, direct, friendly)."
+                >
                   <Input
                     value={form.prompts.defaultTone}
                     onChange={(e) => patch('prompts', { defaultTone: e.target.value })}

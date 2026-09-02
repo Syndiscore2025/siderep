@@ -111,6 +111,10 @@ export interface RenewalMerchantContext {
   userNotes: string;
   representative: RenewalRepProfile;
   sentEmailHistory: RenewalSentEmailContext[];
+  /** Time-of-day greeting resolved from the merchant's local time zone, e.g. "Good morning". */
+  greeting: string;
+  /** Writing tone from Settings → Prompts → Default tone. */
+  tone: string;
 }
 
 export interface RenewalRepProfile {
@@ -189,6 +193,8 @@ export interface RenewalResearchRequest {
   outreachType: RenewalOutreachType;
   sentEmailHistory: RenewalSentEmailContext[];
   lenderProfiles?: LenderProfile[];
+  /** Writing tone from Settings; defaults to "professional" when omitted. */
+  tone?: string;
 }
 
 export const EMPTY_RENEWAL_INPUT: RenewalInput = {

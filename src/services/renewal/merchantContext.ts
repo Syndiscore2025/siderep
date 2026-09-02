@@ -33,6 +33,139 @@ function addressParts(value: string): { city: string; state: string } {
   return { city: parts.at(-2) ?? '', state: stateAndZip };
 }
 
+/** Dominant IANA time zone per US state/territory, keyed by postal code and full name. */
+const STATE_TIME_ZONES: Record<string, string> = {
+  al: 'America/Chicago',
+  alabama: 'America/Chicago',
+  ak: 'America/Anchorage',
+  alaska: 'America/Anchorage',
+  az: 'America/Phoenix',
+  arizona: 'America/Phoenix',
+  ar: 'America/Chicago',
+  arkansas: 'America/Chicago',
+  ca: 'America/Los_Angeles',
+  california: 'America/Los_Angeles',
+  co: 'America/Denver',
+  colorado: 'America/Denver',
+  ct: 'America/New_York',
+  connecticut: 'America/New_York',
+  dc: 'America/New_York',
+  'district of columbia': 'America/New_York',
+  de: 'America/New_York',
+  delaware: 'America/New_York',
+  fl: 'America/New_York',
+  florida: 'America/New_York',
+  ga: 'America/New_York',
+  georgia: 'America/New_York',
+  hi: 'Pacific/Honolulu',
+  hawaii: 'Pacific/Honolulu',
+  id: 'America/Boise',
+  idaho: 'America/Boise',
+  il: 'America/Chicago',
+  illinois: 'America/Chicago',
+  in: 'America/Indiana/Indianapolis',
+  indiana: 'America/Indiana/Indianapolis',
+  ia: 'America/Chicago',
+  iowa: 'America/Chicago',
+  ks: 'America/Chicago',
+  kansas: 'America/Chicago',
+  ky: 'America/New_York',
+  kentucky: 'America/New_York',
+  la: 'America/Chicago',
+  louisiana: 'America/Chicago',
+  me: 'America/New_York',
+  maine: 'America/New_York',
+  md: 'America/New_York',
+  maryland: 'America/New_York',
+  ma: 'America/New_York',
+  massachusetts: 'America/New_York',
+  mi: 'America/Detroit',
+  michigan: 'America/Detroit',
+  mn: 'America/Chicago',
+  minnesota: 'America/Chicago',
+  ms: 'America/Chicago',
+  mississippi: 'America/Chicago',
+  mo: 'America/Chicago',
+  missouri: 'America/Chicago',
+  mt: 'America/Denver',
+  montana: 'America/Denver',
+  ne: 'America/Chicago',
+  nebraska: 'America/Chicago',
+  nv: 'America/Los_Angeles',
+  nevada: 'America/Los_Angeles',
+  nh: 'America/New_York',
+  'new hampshire': 'America/New_York',
+  nj: 'America/New_York',
+  'new jersey': 'America/New_York',
+  nm: 'America/Denver',
+  'new mexico': 'America/Denver',
+  ny: 'America/New_York',
+  'new york': 'America/New_York',
+  nc: 'America/New_York',
+  'north carolina': 'America/New_York',
+  nd: 'America/Chicago',
+  'north dakota': 'America/Chicago',
+  oh: 'America/New_York',
+  ohio: 'America/New_York',
+  ok: 'America/Chicago',
+  oklahoma: 'America/Chicago',
+  or: 'America/Los_Angeles',
+  oregon: 'America/Los_Angeles',
+  pa: 'America/New_York',
+  pennsylvania: 'America/New_York',
+  pr: 'America/Puerto_Rico',
+  'puerto rico': 'America/Puerto_Rico',
+  ri: 'America/New_York',
+  'rhode island': 'America/New_York',
+  sc: 'America/New_York',
+  'south carolina': 'America/New_York',
+  sd: 'America/Chicago',
+  'south dakota': 'America/Chicago',
+  tn: 'America/Chicago',
+  tennessee: 'America/Chicago',
+  tx: 'America/Chicago',
+  texas: 'America/Chicago',
+  ut: 'America/Denver',
+  utah: 'America/Denver',
+  vt: 'America/New_York',
+  vermont: 'America/New_York',
+  va: 'America/New_York',
+  virginia: 'America/New_York',
+  wa: 'America/Los_Angeles',
+  washington: 'America/Los_Angeles',
+  wv: 'America/New_York',
+  'west virginia': 'America/New_York',
+  wi: 'America/Chicago',
+  wisconsin: 'America/Chicago',
+  wy: 'America/Denver',
+  wyoming: 'America/Denver',
+};
+
+function localHour(timeZone: string | undefined, now: Date): number {
+  try {
+    const hour = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      hour12: false,
+      ...(timeZone ? { timeZone } : {}),
+    }).format(now);
+    return Number(hour) % 24;
+  } catch {
+    return now.getHours();
+  }
+}
+
+/**
+ * Time-of-day greeting for the merchant's local time zone, resolved from the business state.
+ * Falls back to the representative's local clock when the state is unknown.
+ */
+export function merchantGreeting(state: string, now: Date = new Date()): string {
+  const timeZone = STATE_TIME_ZONES[state.trim().toLocaleLowerCase()];
+  const hour = localHour(timeZone, now);
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 function offerExpirationIsSoon(value: string): boolean {
   if (/\b(?:expires?\s+soon|today|tomorrow|this week)\b/i.test(value)) return true;
   const match = value.match(
@@ -247,5 +380,7 @@ export function buildRenewalMerchantContext(
     sentEmailHistory: [...request.sentEmailHistory].sort(
       (left, right) => Date.parse(left.sentAt) - Date.parse(right.sentAt),
     ),
+    greeting: merchantGreeting(request.input.state || address.state || businessResearch.state),
+    tone: request.tone?.trim() || 'professional',
   };
 }
