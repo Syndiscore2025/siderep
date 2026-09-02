@@ -55,6 +55,8 @@ export const settingsSchema = z.object({
     defaultTone: z.string().default('professional'),
     signature: z.string().default(''),
     customInstructions: z.string().default(''),
+    /** Text prepended to every generated Renewal email subject (e.g. "1West - "). */
+    subjectPrefix: z.string().max(80).default(''),
   }),
   google: z.object({
     /** Connected Workspace address, shown for reference. Null when signed out. */
@@ -89,7 +91,12 @@ export const DEFAULT_SETTINGS: Settings = {
     maxOutputTokens: 6000,
     webSearchEnabled: true,
   },
-  prompts: { defaultTone: 'professional', signature: '', customInstructions: '' },
+  prompts: {
+    defaultTone: 'professional',
+    signature: '',
+    customInstructions: '',
+    subjectPrefix: '',
+  },
   google: { connectedEmail: null },
   email: { deliveryMode: 'gmail_api', template: { subject: '', body: '' }, rememberSent: true },
   theme: 'dark',

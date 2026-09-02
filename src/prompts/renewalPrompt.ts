@@ -268,6 +268,7 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
     `- Return outreachObjective exactly as "${context.outreachObjective}" so it can be validated.`,
     '',
     'EMAIL STRUCTURE (required):',
+    '- emailSubject: the subject text only. Never begin it with the word "Subject" or a "Subject:" label, and never reproduce a company prefix seen in sent-email history; the prefix is added automatically.',
     '- Greeting: address the merchant by first name on the first line.',
     '- Opening: 1-2 short sentences on the funding situation—current lender, eligibility or funding path, and any supported lender benefit. Do not list capital uses here.',
     '- Lead-in: one short sentence that introduces specific ways capital could work for this business (for example, "Based on what I saw about the shop, here are a few places extra capital could go:").',

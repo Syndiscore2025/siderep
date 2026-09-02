@@ -471,7 +471,7 @@ function parseDraftContent(
     researchFactsUsed: value.researchFactsUsed,
     genericnessCheck: value.genericnessCheck,
     businessSummary: value.businessSummary,
-    emailSubject: value.emailSubject.trim(),
+    emailSubject: value.emailSubject.trim().replace(/^subject\s*:\s*/i, ''),
     emailBody: value.emailBody.trim(),
     smsBody: value.smsBody.trim(),
   };

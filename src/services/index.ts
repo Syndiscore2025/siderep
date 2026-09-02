@@ -61,6 +61,7 @@ export { buildRenewalMerchantContext, determineOutreachObjective } from './renew
 export { resolveBusinessLocator } from './renewal/businessLocator';
 export type { BusinessLocatorKind, ResolvedBusinessLocator } from './renewal/businessLocator';
 export { addressFromGoogleUrl, normalizeGoogleAddressUrl } from './renewal/googleAddress';
+export { applySubjectPrefix } from './renewal/subjectPrefix';
 
 export {
   MessagingExtractionService,

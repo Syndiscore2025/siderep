@@ -394,6 +394,16 @@ export function SettingsPage() {
                     placeholder="professional"
                   />
                 </Field>
+                <Field
+                  label="Email subject prefix"
+                  hint="Added to the start of every generated Renewal email subject."
+                >
+                  <Input
+                    value={form.prompts.subjectPrefix}
+                    onChange={(e) => patch('prompts', { subjectPrefix: e.target.value })}
+                    placeholder="1West - "
+                  />
+                </Field>
                 <Field label="Email signature" hint="Appended to generated emails.">
                   <Textarea
                     rows={3}

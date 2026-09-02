@@ -18,6 +18,8 @@ import {
 } from '@/hooks/useRenewalHistory';
 import { useSettings } from '@/hooks/useSettings';
 import {
+  applySubjectPrefix,
+  buildGmailComposeUrl,
   createExtractionService,
   createRenewalResearchService,
   mapRenewalFields,
@@ -40,6 +42,8 @@ export type RenewalExtractionStatus = 'idle' | 'reading' | 'success' | 'error';
 export type RenewalResearchPhase = 'idle' | 'researching' | 'complete' | 'error' | 'cancelled';
 export type RenewalHistoryStatus =
   { kind: 'idle'; message: '' } | { kind: 'success' | 'error'; message: string };
+export type RenewalDraftField = 'emailSubject' | 'emailBody' | 'smsBody';
+type RenewalDelivery = 'copy' | 'gmail';
 
 /** Optional signal support lets tests verify cancellation while remaining compatible with ExtractionService. */
 export interface RenewalExtractionService {
@@ -79,6 +83,7 @@ export interface RenewalContextValue {
   isDeletingAccount: boolean;
   isClearingHistory: boolean;
   edit: (field: keyof RenewalInput, value: string) => void;
+  editDraft: (field: RenewalDraftField, value: string) => void;
   setEligibility: (value: RenewalEligibility) => void;
   setAccountSearchQuery: (value: string) => void;
   selectAccount: (accountId: string | null) => void;
@@ -88,6 +93,7 @@ export interface RenewalContextValue {
   research: () => Promise<void>;
   retry: () => Promise<void>;
   copyEmail: () => Promise<void>;
+  openInGmail: () => Promise<void>;
   renewed: () => Promise<void>;
   deleteSelectedAccount: () => Promise<void>;
   clearSavedAccounts: () => Promise<void>;
@@ -181,6 +187,12 @@ export function RenewalProvider({
     },
     [setInput],
   );
+
+  /** Manual edits become a new draft so a re-copy is saved rather than treated as a duplicate. */
+  const editDraft = useCallback((field: RenewalDraftField, value: string) => {
+    setDraft((current) => (current ? { ...current, [field]: value } : current));
+    setDraftId(createId());
+  }, []);
 
   const stopAsyncWork = useCallback(() => {
     extractionAbort.current?.abort();
@@ -333,7 +345,10 @@ export function RenewalProvider({
         return;
       }
       researchAbort.current = null;
-      setDraft(result.value);
+      setDraft({
+        ...result.value,
+        emailSubject: applySubjectPrefix(settings.prompts.subjectPrefix, result.value.emailSubject),
+      });
       setDraftId(createId());
       setResearchPhase('complete');
     } catch (error) {
@@ -348,60 +363,86 @@ export function RenewalProvider({
     outreachType,
     researchService,
     settings.lenderProfiles,
+    settings.prompts.subjectPrefix,
     settings.repProfile,
   ]);
 
-  const copyEmail = useCallback(async () => {
-    if (!draft || !draftId || copyInFlight.current) return;
-    const accountIdAtCopy = selectedAccount?.id ?? null;
-    const recordInput = {
-      selectedAccountId: accountIdAtCopy ?? undefined,
-      identity: {
-        merchantName: inputRef.current.merchantName,
-        businessName: inputRef.current.businessName,
-        accountName: inputRef.current.accountName,
-        dba: inputRef.current.dba,
-        website: inputRef.current.website,
-      },
-      outreachType: currentCycle?.outreachType ?? outreachType,
-      draftId,
-      subject: draft.emailSubject,
-      body: draft.emailBody,
-    };
-    copyInFlight.current = true;
-    setCopyPending(true);
-    setHistoryStatus({ kind: 'idle', message: '' });
-    try {
-      await navigator.clipboard.writeText(`Subject: ${draft.emailSubject}\n\n${draft.emailBody}`);
-    } catch {
-      setHistoryStatus({
-        kind: 'error',
-        message:
-          'Could not copy email. The text remains available and selectable for manual copying.',
-      });
-      copyInFlight.current = false;
-      setCopyPending(false);
-      return;
-    }
-    try {
-      const result = await recordEmail.mutateAsync(recordInput);
-      setSelectedAccountId((current) => (current === accountIdAtCopy ? result.accountId : current));
-      setHistoryStatus({
-        kind: 'success',
-        message: result.duplicate
-          ? 'Email copied; this draft was already saved.'
-          : 'Email copied and saved locally.',
-      });
-    } catch {
-      setHistoryStatus({
-        kind: 'error',
-        message: 'Email copied, but local history was not saved.',
-      });
-    } finally {
-      copyInFlight.current = false;
-      setCopyPending(false);
-    }
-  }, [currentCycle, draft, draftId, outreachType, recordEmail, selectedAccount]);
+  const deliverEmail = useCallback(
+    async (delivery: RenewalDelivery) => {
+      if (!draft || !draftId || copyInFlight.current) return;
+      const accountIdAtCopy = selectedAccount?.id ?? null;
+      const recordInput = {
+        selectedAccountId: accountIdAtCopy ?? undefined,
+        identity: {
+          merchantName: inputRef.current.merchantName,
+          businessName: inputRef.current.businessName,
+          accountName: inputRef.current.accountName,
+          dba: inputRef.current.dba,
+          website: inputRef.current.website,
+        },
+        outreachType: currentCycle?.outreachType ?? outreachType,
+        draftId,
+        subject: draft.emailSubject,
+        body: draft.emailBody,
+      };
+      const verb = delivery === 'copy' ? 'copied' : 'opened in Gmail';
+      copyInFlight.current = true;
+      setCopyPending(true);
+      setHistoryStatus({ kind: 'idle', message: '' });
+      try {
+        if (delivery === 'copy') {
+          await navigator.clipboard.writeText(`${draft.emailSubject}\n\n${draft.emailBody}`);
+        } else {
+          const recipient = inputRef.current.merchantEmail.trim();
+          const url = buildGmailComposeUrl({
+            to: recipient ? [recipient] : [],
+            subject: draft.emailSubject,
+            body: draft.emailBody,
+          });
+          if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+            await chrome.tabs.create({ url });
+          } else if (!window.open(url, '_blank', 'noopener')) {
+            throw new Error('Popup blocked');
+          }
+        }
+      } catch {
+        setHistoryStatus({
+          kind: 'error',
+          message:
+            delivery === 'copy'
+              ? 'Could not copy email. The text remains available and selectable for manual copying.'
+              : 'Could not open Gmail. Allow pop-ups for SideRep or use Copy Email instead.',
+        });
+        copyInFlight.current = false;
+        setCopyPending(false);
+        return;
+      }
+      try {
+        const result = await recordEmail.mutateAsync(recordInput);
+        setSelectedAccountId((current) =>
+          current === accountIdAtCopy ? result.accountId : current,
+        );
+        setHistoryStatus({
+          kind: 'success',
+          message: result.duplicate
+            ? `Email ${verb}; this draft was already saved.`
+            : `Email ${verb} and saved locally.`,
+        });
+      } catch {
+        setHistoryStatus({
+          kind: 'error',
+          message: `Email ${verb}, but local history was not saved.`,
+        });
+      } finally {
+        copyInFlight.current = false;
+        setCopyPending(false);
+      }
+    },
+    [currentCycle, draft, draftId, outreachType, recordEmail, selectedAccount],
+  );
+
+  const copyEmail = useCallback(() => deliverEmail('copy'), [deliverEmail]);
+  const openInGmail = useCallback(() => deliverEmail('gmail'), [deliverEmail]);
 
   const renewed = useCallback(async () => {
     if (!selectedAccount || !currentCycle || archiveCycle.isPending) return;
@@ -515,6 +556,7 @@ export function RenewalProvider({
       isDeletingAccount: deleteAccount.isPending,
       isClearingHistory: clearHistory.isPending,
       edit,
+      editDraft,
       setEligibility,
       setAccountSearchQuery,
       selectAccount,
@@ -524,6 +566,7 @@ export function RenewalProvider({
       research,
       retry: research,
       copyEmail,
+      openInGmail,
       renewed,
       deleteSelectedAccount,
       clearSavedAccounts,
@@ -546,12 +589,14 @@ export function RenewalProvider({
       draft,
       draftId,
       edit,
+      editDraft,
       eligibility,
       extractionError,
       extractionStatus,
       extractionWarnings,
       input,
       historyStatus,
+      openInGmail,
       renewalHistory.isLoading,
       renewalHistory.accounts.length,
       readSalesforce,

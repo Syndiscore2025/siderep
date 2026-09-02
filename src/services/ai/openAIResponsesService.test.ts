@@ -236,6 +236,19 @@ describe('OpenAIResponsesService two-stage contract', () => {
     expect(body).not.toHaveProperty('text');
   });
 
+  it('strips a leading "Subject:" label from the generated subject', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(researchCompleted()))
+      .mockResolvedValueOnce(
+        jsonResponse(generationCompleted({ ...DRAFT, emailSubject: 'Subject: Bakery renewal' })),
+      );
+
+    const result = await service().research(REQUEST);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.emailSubject).toBe('Bakery renewal');
+  });
+
   it('regenerates a draft that the model marks generic before returning it', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

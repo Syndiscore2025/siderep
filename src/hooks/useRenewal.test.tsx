@@ -4,8 +4,10 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RenewalExtractionService } from '@/hooks/useRenewal';
-import { loadRenewalHistory, recordCopiedRenewalEmail } from '@/services';
+import { useSettings } from '@/hooks/useSettings';
+import { loadRenewalHistory, recordCopiedRenewalEmail, saveSettings } from '@/services';
 import type { RenewalResearchService } from '@/services';
+import { DEFAULT_SETTINGS } from '@/types';
 import type { ExtractedCustomer, RenewalDraft, RenewalInput } from '@/types';
 import { ok } from '@/utils';
 import type { Result } from '@/utils';
@@ -270,6 +272,68 @@ describe('useRenewal', () => {
     expect(history.accounts).toHaveLength(1);
     expect(history.accounts[0].cycles[0].sentEmails).toHaveLength(1);
     expect(result.current.historyStatus.message).toMatch(/already saved/i);
+  });
+
+  it('applies the subject prefix once, allows draft edits, and opens Gmail with the merchant email', async () => {
+    await saveSettings({
+      ...DEFAULT_SETTINGS,
+      prompts: { ...DEFAULT_SETTINGS.prompts, subjectPrefix: '1West - ' },
+    });
+    const open = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window);
+    const research = vi
+      .fn<RenewalResearchService['research']>()
+      .mockResolvedValueOnce(ok({ ...DRAFT, emailSubject: 'Subject: Renewal options' }))
+      .mockResolvedValueOnce(ok({ ...DRAFT, emailSubject: '1west - Already prefixed' }));
+    const { result } = renderHook(() => ({ renewal: useRenewal(), settings: useSettings() }), {
+      wrapper: createWrapper(emptyExtraction, researchService(research)),
+    });
+    await waitFor(() =>
+      expect(result.current.settings.settings.prompts.subjectPrefix).toBe('1West - '),
+    );
+
+    act(() => {
+      enterMinimumInput(result.current.renewal.edit);
+      result.current.renewal.edit('merchantEmail', 'owner@acme.example');
+    });
+    await act(() => result.current.renewal.research());
+    expect(result.current.renewal.draft?.emailSubject).toBe('1West - Renewal options');
+
+    await act(() => result.current.renewal.research());
+    expect(result.current.renewal.draft?.emailSubject).toBe('1West - Already prefixed');
+
+    const generatedDraftId = result.current.renewal.draftId;
+    act(() => result.current.renewal.editDraft('emailBody', 'Edited body'));
+    expect(result.current.renewal.draft?.emailBody).toBe('Edited body');
+    expect(result.current.renewal.draftId).not.toBe(generatedDraftId);
+
+    await act(() => result.current.renewal.openInGmail());
+    expect(open).toHaveBeenCalledWith(
+      expect.stringContaining('mail.google.com'),
+      '_blank',
+      'noopener',
+    );
+    const composeUrl = new URL(open.mock.calls[0][0] as string);
+    expect(composeUrl.searchParams.get('to')).toBe('owner@acme.example');
+    expect(composeUrl.searchParams.get('su')).toBe('1West - Already prefixed');
+    expect(composeUrl.searchParams.get('body')).toBe('Edited body');
+    const history = await loadRenewalHistory();
+    expect(history.accounts[0].cycles[0].sentEmails[0]).toMatchObject({
+      subject: '1West - Already prefixed',
+      body: 'Edited body',
+    });
+    expect(result.current.renewal.historyStatus.message).toBe(
+      'Email opened in Gmail and saved locally.',
+    );
+  });
+
+  it('reports a blocked Gmail pop-up without saving history', async () => {
+    vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { result } = renderHook(() => useRenewal(), { wrapper: createWrapper() });
+    act(() => enterMinimumInput(result.current.edit));
+    await act(() => result.current.research());
+    await act(() => result.current.openInGmail());
+    expect((await loadRenewalHistory()).accounts).toEqual([]);
+    expect(result.current.historyStatus.message).toMatch(/could not open gmail/i);
   });
 
   it('does not mutate history when clipboard copying fails', async () => {

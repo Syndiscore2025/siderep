@@ -46,6 +46,8 @@ describe('mapRenewalFields', () => {
         ['Business Name', 'Higher priority'],
         ['Merchant Name', ''],
         ['Some Merchant Name Note', 'Must not match'],
+        ['Email', 'fallback@merchant.example'],
+        ['Merchant Email', 'owner@merchant.example'],
       ]),
       {
         ...EMPTY_RENEWAL_INPUT,
@@ -64,6 +66,7 @@ describe('mapRenewalFields', () => {
 
     expect(result.input.businessName).toBe('Higher priority');
     expect(result.input.merchantName).toBe('Manual merchant');
+    expect(result.input.merchantEmail).toBe('owner@merchant.example');
     expect(result.input.dba).toBe('Manual DBA');
     expect(result.input.businessAddress).toBe('123 Manual Street');
     expect(result.input.currentBalance).toBe('$12,500');

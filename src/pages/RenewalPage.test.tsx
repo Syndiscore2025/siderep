@@ -148,11 +148,15 @@ describe('RenewalPage', () => {
     expect(await screen.findByText(/still enter the details manually/i)).toBeInTheDocument();
   });
 
-  it('generates only readonly subject, email, and text outputs with separate copy actions', async () => {
+  it('generates editable subject, email, and text outputs with copy and Gmail actions', async () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const open = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window);
     renderPage();
     enterMinimumInput();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Merchant email' }), {
+      target: { value: 'owner@acme.example' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Go—Research & Generate' }));
 
     await screen.findByRole('textbox', { name: 'Subject' });
@@ -170,18 +174,32 @@ describe('RenewalPage', () => {
     expect(
       screen.queryByRole('heading', { name: /Business summary|Sources/i }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Subject' })).toHaveAttribute('readonly');
-    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveAttribute('readonly');
-    expect(screen.getByRole('textbox', { name: 'Text Message' })).toHaveAttribute('readonly');
+    expect(screen.getByRole('textbox', { name: 'Subject' })).not.toHaveAttribute('readonly');
+    expect(screen.getByRole('textbox', { name: 'Email' })).not.toHaveAttribute('readonly');
+    expect(screen.getByRole('textbox', { name: 'Text Message' })).not.toHaveAttribute('readonly');
 
+    fireEvent.change(screen.getByRole('textbox', { name: 'Subject' }), {
+      target: { value: 'Edited subject' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Email' }), {
+      target: { value: 'Edited body' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Copy Email' }));
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith(
-        `Subject: ${DRAFT.emailSubject}\n\n${DRAFT.emailBody}`,
-      ),
-    );
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Edited subject\n\nEdited body'));
     expect(await screen.findByText('Email copied and saved locally.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Current cycle' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Gmail' }));
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    const composeUrl = new URL(open.mock.calls[0][0] as string);
+    expect(composeUrl.origin).toBe('https://mail.google.com');
+    expect(composeUrl.searchParams.get('to')).toBe('owner@acme.example');
+    expect(composeUrl.searchParams.get('su')).toBe('Edited subject');
+    expect(composeUrl.searchParams.get('body')).toBe('Edited body');
+    expect(
+      await screen.findByText('Email opened in Gmail; this draft was already saved.'),
+    ).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: 'Copy Text' }));
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(DRAFT.smsBody));
   });

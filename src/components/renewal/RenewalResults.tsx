@@ -7,7 +7,7 @@ type CopyState =
   { kind: 'idle' } | { kind: 'success'; message: string } | { kind: 'error'; message: string };
 
 export function RenewalResults() {
-  const { draft, copyEmail, isCopyingEmail } = useRenewal();
+  const { draft, editDraft, copyEmail, openInGmail, isCopyingEmail } = useRenewal();
   const [copyState, setCopyState] = useState<CopyState>({ kind: 'idle' });
   if (!draft) return null;
 
@@ -26,27 +26,27 @@ export function RenewalResults() {
   return (
     <Card title="Renewal results" icon={<MailIcon className="size-3.5" />}>
       <div className="space-y-4">
+        <p className="text-xs text-content-secondary">
+          Edit any field before copying or opening it in Gmail.
+        </p>
         <Field label="Subject">
           <Input
-            readOnly
             value={draft.emailSubject}
-            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => editDraft('emailSubject', event.target.value)}
           />
         </Field>
         <Field label="Email">
           <Textarea
-            readOnly
-            rows={9}
+            rows={12}
             value={draft.emailBody}
-            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => editDraft('emailBody', event.target.value)}
           />
         </Field>
         <Field label="Text Message">
           <Textarea
-            readOnly
             rows={4}
             value={draft.smsBody}
-            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => editDraft('smsBody', event.target.value)}
           />
         </Field>
 
@@ -55,8 +55,11 @@ export function RenewalResults() {
             variant="primary"
             size="sm"
             loading={isCopyingEmail}
-            onClick={() => void copyEmail()}
+            onClick={() => void openInGmail()}
           >
+            Open in Gmail
+          </Button>
+          <Button size="sm" loading={isCopyingEmail} onClick={() => void copyEmail()}>
             Copy Email
           </Button>
           <Button size="sm" onClick={() => void copySecondary(draft.smsBody, 'Text')}>

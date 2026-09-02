@@ -18,9 +18,10 @@ const REQUIRED_FIELDS: Array<{
   key: keyof RenewalInput;
   label: string;
   placeholder?: string;
-  type?: 'text' | 'url';
+  type?: 'text' | 'url' | 'email';
   manual?: boolean;
   wide?: boolean;
+  hint?: string;
 }> = [
   { key: 'businessName', label: 'Business name' },
   {
@@ -30,6 +31,13 @@ const REQUIRED_FIELDS: Array<{
     wide: true,
   },
   { key: 'merchantName', label: 'Merchant first name' },
+  {
+    key: 'merchantEmail',
+    label: 'Merchant email',
+    type: 'email',
+    placeholder: 'owner@business.com',
+    hint: 'Optional. Prefills the recipient when you open the draft in Gmail.',
+  },
   { key: 'latestLender', label: 'Current lender' },
   { key: 'percentagePaid', label: 'Paid in', placeholder: '50%' },
 ];
@@ -84,7 +92,7 @@ export function RenewalInputCard() {
             <div key={field.key} className={field.wide ? 'sm:col-span-2' : undefined}>
               <Field
                 label={field.label}
-                hint={field.manual ? 'Not saved between sessions.' : undefined}
+                hint={field.hint ?? (field.manual ? 'Not saved between sessions.' : undefined)}
               >
                 {field.key === 'latestLender' ? (
                   <>
