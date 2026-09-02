@@ -69,11 +69,36 @@ const DRAFT = {
   genericnessCheck: false,
   businessSummary: 'Example Bakery produces baked goods for local restaurants.',
   emailSubject: 'Example Bakery renewal options',
-  emailBody:
-    'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit for ingredient inventory and delivery payroll. A $20,000 line of credit could also let you draw funds as needed. Would you have time to connect?',
+  emailBody: [
+    'Hi Ada,',
+    '',
+    'Example Bakery has reached renewal eligibility with Example Funding, and the reduced-fee benefit still applies. A $20,000 line of credit is also an option that lets you draw funds as needed.',
+    '',
+    'Based on what I saw about the bakery, here are a few places extra capital could go:',
+    '- Ingredient inventory bought ahead of wholesale orders, so margins hold when flour prices move',
+    '- Delivery payroll covered on time while restaurant invoices are still clearing',
+    '- Bakery equipment upgrades that let the production kitchen fill larger wholesale runs',
+    '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
+    '',
+    'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+  ].join('\n'),
   smsBody:
-    "Hi Ada, can we review renewal options for Example Bakery's ingredient inventory and delivery needs?",
+    'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding, and the reduced fee still applies. With ingredient inventory and delivery payroll to cover between restaurant invoices, extra capital could keep production steady. If it helps, send over 3-4 months of business bank statements and I will see what is available.',
 };
+const FALLBACK_EMAIL_BODY = [
+  'Hi Ada,',
+  '',
+  'Example Bakery has reached renewal eligibility with Example Funding, and the reduced-fee benefit still applies. A $20,000 line of credit is also an option that lets you draw funds as needed.',
+  '',
+  'A few ways additional capital tends to work for a business like yours:',
+  '- Keeping your team paid on schedule while customer payments are still coming in',
+  '- Restocking your best sellers ahead of the busiest weeks of the year',
+  '- Handling a repair or replacement before it interrupts sales',
+  '',
+  'Send over 3-4 months of business bank statements and I will see what is available.',
+].join('\n');
+const FALLBACK_SMS_BODY =
+  'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. If extra capital would help, send over 3-4 months of business bank statements and I will see what is available.';
 
 function jsonResponse(body: unknown, status = 200, headers?: HeadersInit): Response {
   const responseHeaders = new Headers(headers);
@@ -263,9 +288,8 @@ describe('OpenAIResponsesService two-stage contract', () => {
       ...DRAFT,
       researchConfidence: 'low',
       researchFactsUsed: [],
-      emailBody:
-        'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
-      smsBody: 'Hi Ada, can we review renewal options for Example Bakery?',
+      emailBody: FALLBACK_EMAIL_BODY,
+      smsBody: FALLBACK_SMS_BODY,
     };
     const fetchSpy = workflow(
       jsonResponse({
@@ -310,7 +334,7 @@ describe('OpenAIResponsesService validation', () => {
       { title: 'Bakery profile', url: 'https://example.com/research?a=1&b=2' },
       { title: 'Second source', url: 'https://second.example/page' },
     ]);
-    expect(result.ok && result.value.emailBody).toContain('ingredient inventory');
+    expect(result.ok && result.value.emailBody).toMatch(/ingredient inventory/i);
   });
 
   it('still generates from supplied context after a search with no safe source', async () => {
@@ -318,9 +342,8 @@ describe('OpenAIResponsesService validation', () => {
       ...DRAFT,
       researchConfidence: 'low',
       researchFactsUsed: [],
-      emailBody:
-        'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
-      smsBody: 'Hi Ada, can we review renewal options for Example Bakery?',
+      emailBody: FALLBACK_EMAIL_BODY,
+      smsBody: FALLBACK_SMS_BODY,
     };
     workflow(
       jsonResponse(researchCompleted(RESEARCH, [{ url: 'javascript:alert(1)' }])),
@@ -465,8 +488,20 @@ describe('OpenAIResponsesService validation', () => {
         ...DRAFT,
         outreachObjective: 'line_of_credit',
         emailSubject: 'Example Bakery working-capital options',
-        emailBody:
-          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding. We may still explore additional working capital through another funding option, including a $20,000 line of credit you can draw as needed for ingredient inventory and delivery payroll. Would you like to discuss it this week?',
+        emailBody: [
+          'Hi Ada,',
+          '',
+          'Example Bakery is not quite at the renewal point yet with Example Funding, but another funding option may still provide additional working capital. A $20,000 line of credit would let you draw funds as needed rather than taking a lump sum.',
+          '',
+          'Based on what I saw about the bakery, here are a few places that flexibility could go:',
+          '- Ingredient inventory bought ahead of wholesale orders, so margins hold when flour prices move',
+          '- Delivery payroll covered on time while restaurant invoices are still clearing',
+          '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
+          '',
+          'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+        ].join('\n'),
+        smsBody:
+          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but a $20,000 line of credit could cover ingredient inventory and delivery payroll as needed. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
       },
     ],
     [
@@ -485,8 +520,20 @@ describe('OpenAIResponsesService validation', () => {
         ...DRAFT,
         outreachObjective: 'term_loan',
         emailSubject: 'Example Bakery working-capital options',
-        emailBody:
-          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding. We may still explore additional working capital through another funding option. Based on your established payment history, it may be worth checking whether a 36-month term loan is available for ingredient inventory and delivery payroll. Can we discuss it this week?',
+        emailBody: [
+          'Hi Ada,',
+          '',
+          'Example Bakery is not quite at the renewal point yet with Example Funding, but another funding option may still provide additional working capital. Based on your established payment history, it may be worth checking whether a 36-month term loan is available.',
+          '',
+          'Here are a few places that capital could go at the bakery:',
+          '- Ingredient inventory bought ahead of wholesale orders, so margins hold when flour prices move',
+          '- Delivery payroll covered on time while restaurant invoices are still clearing',
+          '- Bakery equipment upgrades that let the production kitchen fill larger wholesale runs',
+          '',
+          'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+        ].join('\n'),
+        smsBody:
+          'Hi Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but with your payment history a 36-month term loan may be worth checking for ingredient inventory and delivery payroll. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
       },
     ],
     [
@@ -504,8 +551,20 @@ describe('OpenAIResponsesService validation', () => {
         ...DRAFT,
         outreachObjective: 'existing_outstanding_offer',
         emailSubject: 'Example Bakery offer follow-up',
-        emailBody:
-          'Hi Ada, I am following up with Example Funding because the $75,000 MCA offer for Example Bakery expires soon. The offer could support ingredient inventory and delivery payroll. Would you like to review the details?',
+        emailBody: [
+          'Hi Ada,',
+          '',
+          'I am following up with Example Funding because the $75,000 MCA offer for Example Bakery expires soon.',
+          '',
+          'Based on what I saw about the bakery, here are a few places that offer could go:',
+          '- Ingredient inventory bought ahead of wholesale orders, so margins hold when flour prices move',
+          '- Delivery payroll covered on time while restaurant invoices are still clearing',
+          '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
+          '',
+          'If you want to move on it, send over 3-4 months of business bank statements and I will confirm the details.',
+        ].join('\n'),
+        smsBody:
+          'Hi Ada, the $75,000 MCA offer for Example Bakery with Example Funding expires soon and could cover ingredient inventory and delivery payroll. If you want to move on it, send over 3-4 months of business bank statements and I will confirm the details.',
       },
     ],
   ] as const)('accepts a correctly framed %s scenario', async (_name, request, draft) => {
@@ -523,9 +582,19 @@ describe('OpenAIResponsesService validation', () => {
       description: 'Coordinates regional freight loads for commercial shippers.',
       uses: ['Carrier payments', 'Fuel purchases', 'Driver payroll', 'Bridging receivables'],
       facts: ['Carrier payments', 'Fuel purchases'],
-      email:
-        'Hi Luis, Summit Freight has reached renewal eligibility with Example Funding. With carrier payments and fuel purchases often arriving before invoices clear, a renewal could give you more room to keep loads moving without interrupting dispatch. Would you be open to a quick call this week?',
-      sms: 'Hi Luis, it is Michael with 1West. Since Summit Freight has carrier payments and fuel purchases to manage between invoice cycles, would a quick renewal review with Example Funding be helpful?',
+      email: [
+        'Hi Luis,',
+        '',
+        'Summit Freight has reached renewal eligibility with Example Funding, so this is a good time to look at renewal options.',
+        '',
+        'With carrier payments and fuel purchases usually landing before invoices clear, here is where a renewal could help:',
+        '- Carrier payments settled on time so loads keep moving while shippers pay on their terms',
+        '- Fuel purchases covered up front instead of waiting on receivables to clear',
+        '- Driver payroll kept steady through slower invoice weeks so dispatch never stalls',
+        '',
+        'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+      ].join('\n'),
+      sms: 'Hi Luis, it is Michael with 1West. Summit Freight has reached renewal eligibility with Example Funding, and since carrier payments and fuel purchases hit before invoices clear, a renewal could keep loads moving. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
     },
     {
       industry: 'dog grooming',
@@ -535,9 +604,19 @@ describe('OpenAIResponsesService validation', () => {
       description: 'Provides full-service dog grooming and sells pet-care products.',
       uses: ['Grooming tables', 'Dryers', 'Pet-care products', 'Groomer staffing'],
       facts: ['Grooming tables', 'Pet-care products'],
-      email:
-        'Hi Maya, Paws & Polish has reached renewal eligibility with Example Funding. I noticed the salon combines grooming with pet-care products, so a renewal may be useful when you are planning for grooming tables or keeping products stocked. Is there a time this week to review what is available?',
-      sms: 'Hi Maya, it is Michael with 1West. For Paws & Polish, a renewal with Example Funding could help around grooming tables or pet-care products. Would you like to take a look?',
+      email: [
+        'Hi Maya,',
+        '',
+        'Paws & Polish has reached renewal eligibility with Example Funding, so renewal options are on the table.',
+        '',
+        'Since the salon combines grooming with pet-care products, here is where a renewal could help:',
+        '- Grooming tables and dryers replaced before wear slows down the daily appointment schedule',
+        '- Pet-care products kept fully stocked so retail sales continue between grooming visits',
+        '- Groomer staffing covered during busy seasons so more appointments can be booked',
+        '',
+        'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+      ].join('\n'),
+      sms: 'Hi Maya, it is Michael with 1West. Paws & Polish has reached renewal eligibility with Example Funding, and a renewal could help with grooming tables or keeping pet-care products stocked. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
     },
     {
       industry: 'commercial contracting',
@@ -552,9 +631,19 @@ describe('OpenAIResponsesService validation', () => {
         'Upfront job expenses',
       ],
       facts: ['Project materials', 'Subcontractor costs'],
-      email:
-        'Hi Devon, Stonebridge Contracting has reached renewal eligibility with Example Funding. On tenant-improvement work, timing between project materials and subcontractor costs can be tight before a job is billed through. A renewal may be worth reviewing for those project needs. Can we find 10 minutes to talk?',
-      sms: 'Hi Devon, it is Michael with 1West. Stonebridge Contracting may have a renewal path with Example Funding for project materials or subcontractor costs. Is a brief call worthwhile?',
+      email: [
+        'Hi Devon,',
+        '',
+        'Stonebridge Contracting has reached renewal eligibility with Example Funding, so renewal options are worth a look.',
+        '',
+        'On tenant-improvement work, here is where a renewal could help before a job is billed through:',
+        '- Project materials purchased up front so crews start on schedule instead of waiting on draws',
+        '- Subcontractor costs paid on time so trades stay committed to your jobs',
+        '- Equipment rentals covered across overlapping projects so no site sits idle',
+        '',
+        'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+      ].join('\n'),
+      sms: 'Hi Devon, it is Michael with 1West. Stonebridge Contracting has reached renewal eligibility with Example Funding, and a renewal could cover project materials or subcontractor costs before a job is billed. If that helps, send over 3-4 months of business bank statements and I will see what is available.',
     },
   ])('accepts distinct, research-grounded %s outreach', async (industryCase) => {
     const research = {
@@ -606,6 +695,89 @@ describe('OpenAIResponsesService validation', () => {
       { ...DRAFT, smsBody: `${DRAFT.smsBody}\n\nRep\nSideRep` },
       /signature to the SMS/i,
     ],
+    [
+      'SMS bullets',
+      {
+        ...DRAFT,
+        smsBody: `${DRAFT.smsBody}\n- Ingredient inventory\n- Delivery payroll`,
+      },
+      /SMS must use plain text without Markdown formatting or bullets/i,
+    ],
+    [
+      'an email without capital-use bullets',
+      {
+        ...DRAFT,
+        emailBody: DRAFT.emailBody
+          .split('\n')
+          .filter((line) => !line.startsWith('- '))
+          .join('\n'),
+      },
+      /3-5 specific capital uses as plain-text bullets/i,
+    ],
+    [
+      'bare-noun bullets with no business outcome',
+      {
+        ...DRAFT,
+        emailBody: DRAFT.emailBody
+          .replace(
+            '- Ingredient inventory bought ahead of wholesale orders, so margins hold when flour prices move',
+            '- Ingredient inventory',
+          )
+          .replace(
+            '- Delivery payroll covered on time while restaurant invoices are still clearing',
+            '- Delivery payroll',
+          ),
+      },
+      /ties the use to a business outcome/i,
+    ],
+    [
+      'a jammed generic capital-use sentence',
+      {
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace(
+          'Based on what I saw about the bakery, here are a few places extra capital could go:',
+          'Additional working capital could help with equipment, inventory, staffing, marketing, and operating expenses. Here are a few places it could go:',
+        ),
+      },
+      /jammed into one generic sentence/i,
+    ],
+    [
+      'generic industry-filler bullets',
+      {
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace(
+          /^- .*$(?:\n- .*$)*/m,
+          [
+            '- Ingredient inventory bought ahead of wholesale orders, so margins hold when flour prices move',
+            '- Delivery payroll covered on time while restaurant invoices are still clearing',
+            '- Equipment upgrades so operations keep running smoothly every day',
+            '- Marketing pushes that bring in more foot traffic each month',
+          ].join('\n'),
+        ),
+      },
+      /generic industry filler rather than grounded in verified research/i,
+    ],
+    [
+      'a missing bank-statement request',
+      {
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace(
+          'send over 3-4 months of business bank statements and I will see what is available',
+          'reply and I will see what is available',
+        ),
+      },
+      /3-4 months of business bank statements/i,
+    ],
+    [
+      'a default request for a call',
+      { ...DRAFT, emailBody: `${DRAFT.emailBody} Would you be open to a quick call this week?` },
+      /asked for a call instead of requesting bank statements/i,
+    ],
+    [
+      'a default request for a call in the SMS',
+      { ...DRAFT, smsBody: `${DRAFT.smsBody} Or we can hop on a call.` },
+      /asked for a call instead of requesting bank statements/i,
+    ],
   ])('rejects %s', async (_name, draft, expected) => {
     workflow(jsonResponse(researchCompleted()), jsonResponse(generationCompleted(draft)));
 
@@ -613,6 +785,51 @@ describe('OpenAIResponsesService validation', () => {
 
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.message).toMatch(expected);
+  });
+
+  it('accepts five bullets and a call request when the rep asks for one in userNotes', async () => {
+    const request: RenewalResearchRequest = {
+      ...REQUEST,
+      input: { ...REQUEST.input, userNotes: 'Offer a quick call if they prefer.' },
+    };
+    const draft = {
+      ...DRAFT,
+      emailBody: `${DRAFT.emailBody.replace(
+        '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
+        '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay\n- Bread and pastry production scaled up ahead of larger wholesale orders',
+      )} Or we can set up a quick call if that is easier.`,
+    };
+    workflow(jsonResponse(researchCompleted()), jsonResponse(generationCompleted(draft)));
+
+    const result = await service().research(request);
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('regenerates with bullet guidance when the personalization quality test fails', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(researchCompleted()))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          generationCompleted({
+            ...DRAFT,
+            emailBody: DRAFT.emailBody
+              .split('\n')
+              .filter((line) => !line.startsWith('- '))
+              .join('\n'),
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(generationCompleted(DRAFT)));
+
+    const result = await service().research(REQUEST);
+
+    expect(result.ok).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    const retryBody = JSON.parse(String(fetchSpy.mock.calls[2]?.[1]?.body));
+    expect(retryBody.input).toContain('The prior draft was generic. Regenerate it');
+    expect(retryBody.input).toContain('3-5 research-grounded capital-use bullets');
   });
 
   it('rejects eligible renewal outreach that omits the current lender', async () => {
@@ -678,9 +895,10 @@ describe('OpenAIResponsesService validation', () => {
       'missing calls to action',
       generationCompleted({
         ...DRAFT,
-        emailBody: DRAFT.emailBody
-          .replace('We can review renewal options', 'Renewal options are available')
-          .replace('Would you have time to connect?', 'Thank you.'),
+        emailBody: DRAFT.emailBody.replace(
+          'If that is useful, send over 3-4 months of business bank statements and I will see what is available.',
+          'Thank you.',
+        ),
         smsBody: 'Hi Ada, Example Bakery has renewal options with Example Funding.',
       }),
       /clear call to action/i,
@@ -709,8 +927,14 @@ describe('OpenAIResponsesService validation', () => {
       'research-free email',
       generationCompleted({
         ...DRAFT,
-        emailBody:
-          'Hi Ada, Example Bakery has reached renewal eligibility with Example Funding. We can review renewal options and the reduced-fee benefit. A $20,000 line of credit could let you draw funds as needed.',
+        emailBody: DRAFT.emailBody.replace(
+          /^- .*$(?:\n- .*$)*/m,
+          [
+            '- Bread and pastry production scaled up ahead of larger wholesale orders',
+            '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
+            '- Storefront upgrades that keep retail customers coming back between wholesale runs',
+          ].join('\n'),
+        ),
       }),
       /incorporate every selected research fact/i,
     ],

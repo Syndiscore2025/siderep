@@ -202,6 +202,28 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/do not append a signature/i);
   });
 
+  it('requires ranked, research-specific capital-use bullets and a bank-statement CTA', () => {
+    const prompt = generation();
+    expect(prompt).toContain('EMAIL STRUCTURE (required):');
+    expect(prompt).toMatch(/3-5 lines, each starting with "- "/i);
+    expect(prompt).toMatch(/drawn from the research for this exact business/i);
+    expect(prompt).toMatch(/connects it to a revenue or cash-flow outcome/i);
+    expect(prompt).toMatch(/rank them by how directly they tie to this business/i);
+    expect(prompt).toMatch(/keep only the strongest 3-5/i);
+    expect(prompt).toMatch(/drop any use that would fit almost any company/i);
+    expect(prompt).toMatch(
+      /never jam several uses into one sentence such as "equipment, inventory, staffing, marketing, and operating expenses\."/i,
+    );
+    expect(prompt).toMatch(/send over 3-4 months of business bank statements/i);
+    expect(prompt).toMatch(/do not ask for a call, meeting, or phone time unless userNotes/i);
+    expect(prompt).toMatch(/only list formatting allowed is the "- " bullet list/i);
+    expect(prompt).toMatch(/SMS:.*no Markdown, bold, bullets, or line lists/i);
+    expect(prompt).toMatch(/SMS:.*1-2 of the same specific capital uses/i);
+    expect(prompt).toMatch(/SMS:.*bank statements or a quick reply rather than a call/i);
+    expect(prompt).toContain('PERSONALIZATION QUALITY TEST (internal, never exposed in the copy):');
+    expect(prompt).toMatch(/generic industry filler instead of this merchant/i);
+  });
+
   it('uses the deterministic outreach objective rather than asking the model to select one', () => {
     expect(generation()).toMatch(/Fixed outreach objective: renewal/i);
     expect(generation({ eligibility: 'not_eligible', outreachType: 'add_on' })).toMatch(

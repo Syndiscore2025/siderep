@@ -131,7 +131,7 @@ const DRAFT_SCHEMA = {
       type: 'string',
       maxLength: 4_000,
       description:
-        'A copy-ready email tailored with only verified research or explicitly supplied merchant details and business-specific capital uses; no citations or URLs.',
+        'A copy-ready plain-text email: greeting, 1-2 sentences on the funding situation, a lead-in, 3-5 "- " bullets each tying one research-specific capital use to a revenue or cash-flow outcome, and a closing ask for 3-4 months of business bank statements; no citations, URLs, or call requests.',
     },
     smsBody: {
       type: 'string',
@@ -488,9 +488,13 @@ function parseDraftContent(
   if (draft.genericnessCheck) {
     return err(new Error('OpenAI marked the outreach as too generic for the merchant.'));
   }
-  const markdown = /(?:\*\*|__|`|^\s*(?:#{1,6}\s|[-*+]\s|[0-9]+\.\s))/m;
-  if (markdown.test(draft.emailBody) || markdown.test(draft.smsBody)) {
+  const emailMarkdown = /(?:\*\*|__|`|^\s*(?:#{1,6}\s|[*+]\s|[0-9]+\.\s))/m;
+  if (emailMarkdown.test(draft.emailBody)) {
     return err(new Error('OpenAI output must use plain text without Markdown formatting.'));
+  }
+  const smsMarkdown = /(?:\*\*|__|`|^\s*(?:#{1,6}\s|[-*+•]\s|[0-9]+\.\s))/m;
+  if (smsMarkdown.test(draft.smsBody)) {
+    return err(new Error('OpenAI SMS must use plain text without Markdown formatting or bullets.'));
   }
   return ok(draft);
 }
@@ -852,9 +856,121 @@ function validateChannelDetails(
     return err(new Error('OpenAI used an unsupported business location.'));
   }
   const cta =
-    /\b(?:can we|would you|are you available|is there a time|let'?s|reply|call|schedule|connect|review|talk|discuss|take a look)\b/i;
+    /\b(?:can we|would you|are you available|is there a time|let'?s|reply|call|schedule|connect|review|talk|discuss|take a look|send(?: over| me)?|share|forward)\b/i;
   if (!cta.test(content.emailBody) || !cta.test(content.smsBody)) {
     return err(new Error('OpenAI outreach needs a clear call to action in both email and SMS.'));
+  }
+  return ok(content);
+}
+
+const GENERIC_USE_TERMS = [
+  'equipment',
+  'inventory',
+  'staffing',
+  'staff',
+  'hiring',
+  'marketing',
+  'payroll',
+  'supplies',
+  'operating expenses',
+  'operating costs',
+  'overhead',
+  'working capital',
+  'cash flow',
+  'growth',
+  'expansion',
+  'operations',
+] as const;
+const BANK_STATEMENT_REQUEST =
+  /\b(?:3|three)\s*(?:-|–|to|or)\s*(?:4|four)\s+months(?:['’])?\s+(?:of\s+)?(?:(?:recent|latest|most recent)\s+)?(?:business\s+)?bank statements?\b/i;
+const CALL_REQUEST =
+  /\b(?:(?:quick|brief|short|phone|intro|introductory)\s+call|hop on a call|jump on a call|schedule a call|set up a call|book a call|give you a call|(?:a|the) call (?:this|next) week|call (?:me|you)|worth a call|for a call|time to (?:talk|chat)|open to a call|chat by phone|10 minutes to talk|find time to talk)\b/i;
+
+function emailBullets(email: string): string[] {
+  return email.split('\n').flatMap((line) => {
+    const match = line.match(/^\s*(?:-|•)\s+(.+?)\s*$/);
+    return match ? [match[1]] : [];
+  });
+}
+
+function researchCorpusItems(context: RenewalMerchantContext): string[] {
+  return [
+    context.businessResearch.businessType,
+    context.businessResearch.industry,
+    context.businessResearch.companyDescription,
+    ...context.businessResearch.products,
+    ...context.businessResearch.services,
+    context.businessResearch.customerType,
+    context.businessResearch.businessModel,
+    context.businessResearch.locationDetails,
+    ...context.businessResearch.currentBusinessActivity,
+    ...context.businessResearch.workingCapitalUses,
+  ];
+}
+
+function genericTermCount(sentence: string): number {
+  return GENERIC_USE_TERMS.filter((term) =>
+    new RegExp(`\\b${term.replace(/\s+/g, '\\s+')}\\b`, 'i').test(sentence),
+  ).length;
+}
+
+function validateOutreachStructure(
+  content: DraftContent,
+  context: RenewalMerchantContext,
+): Result<DraftContent> {
+  const bullets = emailBullets(content.emailBody);
+  if (bullets.length < 3 || bullets.length > 5) {
+    return err(
+      new Error(
+        'Personalization quality test failed: the email must list 3-5 specific capital uses as plain-text bullets.',
+      ),
+    );
+  }
+  if (new Set(bullets.map(comparable)).size !== bullets.length) {
+    return err(new Error('Personalization quality test failed: capital-use bullets repeated.'));
+  }
+  const wordCounts = bullets.map((bullet) => bullet.split(/\s+/).filter(Boolean).length);
+  if (wordCounts.some((count) => count < 6 || count > 30)) {
+    return err(
+      new Error(
+        'Personalization quality test failed: each capital-use bullet must be one readable line that ties the use to a business outcome.',
+      ),
+    );
+  }
+  const prose = content.emailBody
+    .split('\n')
+    .filter((line) => !/^\s*(?:-|•)\s+/.test(line))
+    .join('\n');
+  const sentences = [...prose.split(/(?<=[.!?])\s+|\n/), ...content.smsBody.split(/(?<=[.!?])\s+/)];
+  if (sentences.some((sentence) => genericTermCount(sentence) >= 3)) {
+    return err(
+      new Error(
+        'Personalization quality test failed: capital uses were jammed into one generic sentence instead of specific bullets.',
+      ),
+    );
+  }
+  if (!BANK_STATEMENT_REQUEST.test(content.emailBody)) {
+    return err(new Error('OpenAI email did not ask for 3-4 months of business bank statements.'));
+  }
+  const callRequested = /\b(?:call|phone)\b/i.test(context.userNotes);
+  if (
+    !callRequested &&
+    (CALL_REQUEST.test(content.emailBody) || CALL_REQUEST.test(content.smsBody))
+  ) {
+    return err(new Error('OpenAI asked for a call instead of requesting bank statements.'));
+  }
+  if (context.businessResearch.exactBusinessVerified) {
+    const generic = new Set<string>(GENERIC_USE_TERMS);
+    const researchAnchors = anchors(researchCorpusItems(context)).filter(
+      (anchor) => !generic.has(anchor),
+    );
+    if (bullets.some((bullet) => !includesAny(bullet, researchAnchors))) {
+      return err(
+        new Error(
+          'Personalization quality test failed: a capital-use bullet was generic industry filler rather than grounded in verified research.',
+        ),
+      );
+    }
   }
   return ok(content);
 }
@@ -912,6 +1028,8 @@ function validatePersonalization(
   if (!scenario.ok) return scenario;
   const channelDetails = validateChannelDetails(content, context);
   if (!channelDetails.ok) return channelDetails;
+  const structure = validateOutreachStructure(content, context);
+  if (!structure.ok) return structure;
   if (!context.businessResearch.exactBusinessVerified) {
     if (content.researchFactsUsed.length) {
       return err(
@@ -951,18 +1069,7 @@ function validatePersonalization(
   ) {
     return err(new Error('OpenAI did not select 2-4 distinct verified business facts.'));
   }
-  const researchCorpus = [
-    context.businessResearch.businessType,
-    context.businessResearch.industry,
-    context.businessResearch.companyDescription,
-    ...context.businessResearch.products,
-    ...context.businessResearch.services,
-    context.businessResearch.customerType,
-    context.businessResearch.businessModel,
-    context.businessResearch.locationDetails,
-    ...context.businessResearch.currentBusinessActivity,
-    ...context.businessResearch.workingCapitalUses,
-  ].join('\n');
+  const researchCorpus = researchCorpusItems(context).join('\n');
   for (const fact of facts) {
     const factAnchors = anchors([fact]);
     if (!factAnchors.length || !includesAny(researchCorpus, factAnchors)) {
@@ -1154,8 +1261,10 @@ export class OpenAIResponsesService implements RenewalResearchService {
       researched.value.sources,
     );
     if (generated.ok) return generated;
-    const validationFeedback = /too generic/i.test(generated.error.message)
-      ? 'The prior draft was generic. Regenerate it with more verified business-specific context, a distinct structure, and genericnessCheck set accurately.'
+    const validationFeedback = /too generic|personalization quality test/i.test(
+      generated.error.message,
+    )
+      ? `The prior draft was generic. Regenerate it with more verified business-specific context, a distinct structure, 3-5 research-grounded capital-use bullets each tied to a revenue or cash-flow outcome, and genericnessCheck set accurately. ${generated.error.message}`
       : `The prior draft failed validation: ${generated.error.message} Regenerate it with only the supplied, verified context and all channel requirements met.`;
 
     const regenerated = await this.request(
