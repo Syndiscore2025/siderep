@@ -102,7 +102,7 @@ describe('buildRenewalPrompt', () => {
 
   it('requires scouting real sources and forbids guessing from the business name', () => {
     const prompt = buildRenewalResearchPrompt(renewal());
-    expect(prompt).toContain('BUSINESS SCOUTING & RESEARCH — REQUIRED BEFORE WRITING OUTREACH:');
+    expect(prompt).toContain('BUSINESS SCOUTING & RESEARCH (REQUIRED BEFORE WRITING OUTREACH):');
     expect(prompt).toMatch(
       /do not guess a merchant's business model, products, services, customers, or likely uses of capital from the business name alone/i,
     );
@@ -161,10 +161,10 @@ describe('buildRenewalPrompt', () => {
   it('derives specific capital uses and includes only verified current context', () => {
     const prompt = buildRenewalResearchPrompt(renewal());
     expect(prompt).toMatch(/derive 4-6 realistic, business-specific uses/i);
-    expect(prompt).toMatch(/freight\/logistics—carrier payments, payroll, fuel/i);
-    expect(prompt).toMatch(/contractors—materials, labor, subcontractors, equipment/i);
-    expect(prompt).toMatch(/dog grooming—grooming equipment, dryers and tables/i);
-    expect(prompt).toMatch(/restaurants\/cafes—food inventory, equipment, payroll, catering/i);
+    expect(prompt).toMatch(/freight\/logistics: carrier payments, payroll, fuel/i);
+    expect(prompt).toMatch(/contractors: materials, labor, subcontractors, equipment/i);
+    expect(prompt).toMatch(/dog grooming: grooming equipment, dryers and tables/i);
+    expect(prompt).toMatch(/restaurants\/cafes: food inventory, equipment, payroll, catering/i);
     expect(prompt).toMatch(/do not use generic benefits/i);
     expect(prompt).toMatch(/expansion, new locations, relocation, new services, seasonal demand/i);
     expect(prompt).toMatch(/use current context only when it is reasonably verified/i);
@@ -210,10 +210,10 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/one relevant operational detail.*specific realistic capital uses/i);
     expect(prompt).toMatch(/select 2-4 useful facts.*naturally incorporate all of them/i);
     expect(prompt).toMatch(/researchFactsUsed/i);
-    expect(prompt).toMatch(/contractors—materials, labor, subcontractors/i);
-    expect(prompt).toMatch(/dog groomers—grooming equipment, shampoos/i);
-    expect(prompt).toMatch(/HVAC wholesalers—HVAC or mini-split inventory/i);
-    expect(prompt).toMatch(/event-rental companies—rental inventory/i);
+    expect(prompt).toMatch(/contractors: materials, labor, subcontractors/i);
+    expect(prompt).toMatch(/dog groomers: grooming equipment, shampoos/i);
+    expect(prompt).toMatch(/HVAC wholesalers: HVAC or mini-split inventory/i);
+    expect(prompt).toMatch(/event-rental companies: rental inventory/i);
     expect(prompt).toMatch(/never claim revenue growth, profitability, employee count, contracts/i);
     expect(prompt).toMatch(/leave anything unverified out instead of guessing/i);
     expect(prompt).toMatch(/125-225 words in most cases, without a rigid word cap/i);
@@ -230,6 +230,14 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/do not use "Hi", "Hello", or "Hey" as the greeting/i);
     expect(prompt).toMatch(/include the word "please" in the bank-statement request/i);
     expect(prompt).toMatch(/natural "thank you" in the body of both the email and the SMS/i);
+    expect(prompt).toMatch(/never write "thank you for taking a look"/i);
+    expect(prompt).toMatch(
+      /must begin with the exact words "If you are interested in additional capital,"/i,
+    );
+    expect(prompt).toMatch(
+      /never use em dashes or en dashes anywhere in emailSubject, emailBody, or smsBody/i,
+    );
+    expect(prompt).not.toMatch(/[\u2013\u2014]/);
     expect(prompt).toContain('"greeting": "Good morning"');
 
     expect(generation({ tone: 'warm and direct' })).toMatch(
@@ -279,12 +287,16 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(
       /never jam several uses into one sentence such as "equipment, inventory, staffing, marketing, and operating expenses\."/i,
     );
-    expect(prompt).toMatch(/send over 3-4 months of business bank statements/i);
+    expect(prompt).toMatch(
+      /Closing CTA: one short sentence that begins "If you are interested in additional capital, please send over 3-4 months of business bank statements"/i,
+    );
     expect(prompt).toMatch(/do not ask for a call, meeting, or phone time unless userNotes/i);
     expect(prompt).toMatch(/only list formatting allowed is the "- " bullet list/i);
     expect(prompt).toMatch(/SMS:.*no Markdown, bold, bullets, or line lists/i);
     expect(prompt).toMatch(/SMS:.*1-2 of the same specific capital uses/i);
-    expect(prompt).toMatch(/SMS:.*bank statements or a quick reply rather than a call/i);
+    expect(prompt).toMatch(
+      /SMS:.*"If you are interested in additional capital, please send over 3-4 months of business bank statements" \(or a quick reply\) rather than a call/i,
+    );
     expect(prompt).toContain('PERSONALIZATION QUALITY TEST (internal, never exposed in the copy):');
     expect(prompt).toMatch(/generic industry filler instead of this merchant/i);
   });
