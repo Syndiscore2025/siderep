@@ -253,6 +253,10 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
     sentEmailHistory: context.sentEmailHistory.slice(-10),
   };
   const greeting = `${context.greeting} ${context.merchant.merchantFirstName}`.trim();
+  const repEmail = context.representative.email.trim();
+  const statementCta = repEmail
+    ? `If you are interested in additional capital, please send over 3-4 months of business bank statements to ${repEmail}`
+    : 'If you are interested in additional capital, please send over 3-4 months of business bank statements';
   return [
     'Generate a personalized merchant email and SMS from the complete structured context below.',
     `Fixed outreach objective: ${context.outreachObjective}.`,
@@ -290,8 +294,13 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
         ]
       : []),
     `- Greeting: style.greeting is already resolved from the merchant's local time zone. The email must begin with the line "${greeting}," and the SMS must begin with "${greeting}," followed by the message. Do not use "Hi", "Hello", or "Hey" as the greeting.`,
-    '- Manners: use polite language in both channels. Include the word "please" in the bank-statement request (for example, "please send over 3-4 months of business bank statements") and include a natural "thank you" in the body of both the email and the SMS (for example, "Thank you for your time"). Never write "thank you for taking a look". Keep it sincere and brief; do not turn "Thank you" into a standalone sign-off line.',
-    '- Bank-statement lead-in: in both the email and the SMS, the sentence that asks for bank statements must begin with the exact words "If you are interested in additional capital," (for example, "If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available."). Do not substitute phrases like "If that is useful" or "If it helps".',
+    '- Manners: use polite language in both channels. Include the word "please" in the bank-statement request and include a natural, specific "thank you" in the body of both the email and the SMS. Write the thank-you in your own words for this merchant; tie it to something real (their time reviewing the options, their history with the lender, the business they run). Never write the stock phrases "Thank you for your time", "Thanks for your time", or "thank you for taking a look". Keep it sincere and brief; do not turn "Thank you" into a standalone sign-off line.',
+    `- Bank-statement request: in both the email and the SMS, the sentence that asks for bank statements must begin with the exact words "${statementCta}" and may continue naturally (for example, "${statementCta} and I will see what is available."). Do not substitute phrases like "If that is useful" or "If it helps".`,
+    ...(repEmail
+      ? [
+          `- Statement destination: the merchant must be told to send the statements to ${repEmail} (representative.email) in both the email and the SMS. Write the address exactly as given; do not omit it, paraphrase it, or replace it with "reply to this email".`,
+        ]
+      : []),
     '- Punctuation: never use em dashes or en dashes anywhere in emailSubject, emailBody, or smsBody. Use a comma, colon, period, or two sentences instead. A plain hyphen inside a word (mini-split, 3-4) is fine.',
     '',
     'EMAIL STRUCTURE (required):',
@@ -302,10 +311,10 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
     '- Capital-use bullets: 3-5 lines, each starting with "- ". Each bullet names one specific use of capital drawn from the research for this exact business and connects it to a revenue or cash-flow outcome (for example, "- Ingredient inventory bought in bulk ahead of the holiday wholesale rush, so margins hold when flour and butter prices move"). One line per bullet, roughly 8-20 words, no sub-bullets, no bold, no headers.',
     '- Ranking: gather every candidate use from specificUsesOfCapital, products, services, typicalCustomers, and relevantBusinessFacts; rank them by how directly they tie to this business and its revenue or cash flow; keep only the strongest 3-5. Drop any use that would fit almost any company.',
     '- Never jam several uses into one sentence such as "equipment, inventory, staffing, marketing, and operating expenses." Generic uses like those are not allowed as bullets unless the research shows a specific version of them (for example, a named piece of equipment or a specific inventory category).',
-    '- Closing CTA: one short sentence that begins "If you are interested in additional capital, please send over 3-4 months of business bank statements" so you can see what is available, with the thank-you in the same line or the sentence before it. Do not ask for a call, meeting, or phone time unless userNotes explicitly asks for one. The bank-statement CTA is the final line of the email.',
+    `- Closing CTA: one short sentence that begins "${statementCta}" so you can see what is available, with the thank-you in the same line or the sentence before it. Do not ask for a call, meeting, or phone time unless userNotes explicitly asks for one. The bank-statement CTA is the final line of the email.`,
     '- Sign-off: do not add one. Do not end the email with "Best regards", "Thanks", the representative name, company, phone, or email; the rep\'s signature block is appended automatically after generation.',
     '- Email: plain text only, with no Markdown, bold, headers, or numbered lists; the only list formatting allowed is the "- " bullet list above. Write 125-225 words in most cases, without a rigid word cap, with short skimmable sentences. Use a professional, conversational one-to-one voice from the representative in context. Naturally mention the current lender and applicable funding situation, use 2-4 selected research facts, avoid repeating the business name, and close with the single bank-statement CTA. Never promise approval.',
-    '- SMS: write it separately, not as a mechanical email summary. Plain text only, with no Markdown, bold, bullets, or line lists, at roughly 60-130 words. Open with the same time-of-day greeting and first name, make it conversational, work 1-2 of the same specific capital uses into a sentence, state the funding situation, and close with "If you are interested in additional capital, please send over 3-4 months of business bank statements" (or a quick reply) rather than a call, with a brief thank you. Do not append a signature, representative name, company, phone, or email at the end.',
+    `- SMS: write it separately, not as a mechanical email summary. Plain text only, with no Markdown, bold, bullets, or line lists, at roughly 60-130 words. Open with the same time-of-day greeting and first name, make it conversational, work 1-2 of the same specific capital uses into a sentence, state the funding situation, and close with "${statementCta}" (or a quick reply) rather than a call, with a brief thank you. Do not append a signature, representative name, company, phone, or email at the end; the representative email belongs only inside the bank-statement sentence.`,
     '',
     'PERSONALIZATION QUALITY TEST (internal, never exposed in the copy):',
     '- Before returning, ask: “Could this exact email be sent to almost any company by changing only the company name?” and “Do the bullets read like generic industry filler instead of this merchant’s actual operation?” If the answer to either is yes, rewrite the bullets and opening with more specific verified context first; if it still fails, set genericnessCheck to true. Otherwise set genericnessCheck to false.',

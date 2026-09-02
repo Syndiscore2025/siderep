@@ -80,10 +80,10 @@ const DRAFT = {
     '- Bakery equipment upgrades that let the production kitchen fill larger wholesale runs',
     '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
     '',
-    'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+    'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
   ].join('\n'),
   smsBody:
-    'Good morning Ada, Example Bakery has reached renewal eligibility with Example Funding, and the reduced fee still applies. With ingredient inventory and delivery payroll to cover between restaurant invoices, extra capital could keep production steady. If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+    'Good morning Ada, Example Bakery has reached renewal eligibility with Example Funding, and the reduced fee still applies. With ingredient inventory and delivery payroll to cover between restaurant invoices, extra capital could keep production steady. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
 };
 const FALLBACK_EMAIL_BODY = [
   'Good morning Ada,',
@@ -95,10 +95,10 @@ const FALLBACK_EMAIL_BODY = [
   '- Restocking your best sellers ahead of the busiest weeks of the year',
   '- Handling a repair or replacement before it interrupts sales',
   '',
-  'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+  'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
 ].join('\n');
 const FALLBACK_SMS_BODY =
-  'Good morning Ada, Example Bakery has reached renewal eligibility with Example Funding. If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.';
+  'Good morning Ada, Example Bakery has reached renewal eligibility with Example Funding. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.';
 
 function jsonResponse(body: unknown, status = 200, headers?: HeadersInit): Response {
   const responseHeaders = new Headers(headers);
@@ -534,10 +534,10 @@ describe('OpenAIResponsesService validation', () => {
           '- Delivery payroll covered on time while restaurant invoices are still clearing',
           '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
           '',
-          'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+          'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
         ].join('\n'),
         smsBody:
-          'Good morning Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but a $20,000 line of credit could cover ingredient inventory and delivery payroll as needed. If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+          'Good morning Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but a $20,000 line of credit could cover ingredient inventory and delivery payroll as needed. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
       },
     ],
     [
@@ -566,10 +566,10 @@ describe('OpenAIResponsesService validation', () => {
           '- Delivery payroll covered on time while restaurant invoices are still clearing',
           '- Bakery equipment upgrades that let the production kitchen fill larger wholesale runs',
           '',
-          'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+          'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
         ].join('\n'),
         smsBody:
-          'Good morning Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but with your payment history a 36-month term loan may be worth checking for ingredient inventory and delivery payroll. If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+          'Good morning Ada, Example Bakery is not quite at the renewal point yet with Example Funding, but with your payment history a 36-month term loan may be worth checking for ingredient inventory and delivery payroll. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
       },
     ],
     [
@@ -597,10 +597,10 @@ describe('OpenAIResponsesService validation', () => {
           '- Delivery payroll covered on time while restaurant invoices are still clearing',
           '- Wholesale packaging stocked in bulk so new restaurant accounts ship without delay',
           '',
-          'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will confirm the details. Thank you for your time.',
+          'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will confirm the details. Thank you for considering it.',
         ].join('\n'),
         smsBody:
-          'Good morning Ada, the $75,000 MCA offer for Example Bakery with Example Funding expires soon and could cover ingredient inventory and delivery payroll. If you are interested in additional capital, please send over 3-4 months of business bank statements and I will confirm the details. Thank you for your time.',
+          'Good morning Ada, the $75,000 MCA offer for Example Bakery with Example Funding expires soon and could cover ingredient inventory and delivery payroll. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will confirm the details. Thank you for considering it.',
       },
     ],
   ] as const)('accepts a correctly framed %s scenario', async (_name, request, draft) => {
@@ -628,9 +628,9 @@ describe('OpenAIResponsesService validation', () => {
         '- Fuel purchases covered up front instead of waiting on receivables to clear',
         '- Driver payroll kept steady through slower invoice weeks so dispatch never stalls',
         '',
-        'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+        'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
       ].join('\n'),
-      sms: 'Good morning Luis, it is Michael with 1West. Summit Freight has reached renewal eligibility with Example Funding, and since carrier payments and fuel purchases hit before invoices clear, a renewal could keep loads moving. If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+      sms: 'Good morning Luis, it is Michael with 1West. Summit Freight has reached renewal eligibility with Example Funding, and since carrier payments and fuel purchases hit before invoices clear, a renewal could keep loads moving. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
     },
     {
       industry: 'dog grooming',
@@ -650,9 +650,9 @@ describe('OpenAIResponsesService validation', () => {
         '- Pet-care products kept fully stocked so retail sales continue between grooming visits',
         '- Groomer staffing covered during busy seasons so more appointments can be booked',
         '',
-        'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+        'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
       ].join('\n'),
-      sms: 'Good morning Maya, it is Michael with 1West. Paws & Polish has reached renewal eligibility with Example Funding, and a renewal could help with grooming tables or keeping pet-care products stocked. If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+      sms: 'Good morning Maya, it is Michael with 1West. Paws & Polish has reached renewal eligibility with Example Funding, and a renewal could help with grooming tables or keeping pet-care products stocked. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
     },
     {
       industry: 'commercial contracting',
@@ -677,9 +677,9 @@ describe('OpenAIResponsesService validation', () => {
         '- Subcontractor costs paid on time so trades stay committed to your jobs',
         '- Equipment rentals covered across overlapping projects so no site sits idle',
         '',
-        'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+        'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
       ].join('\n'),
-      sms: 'Good morning Devon, it is Michael with 1West. Stonebridge Contracting has reached renewal eligibility with Example Funding, and a renewal could cover project materials or subcontractor costs before a job is billed. If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
+      sms: 'Good morning Devon, it is Michael with 1West. Stonebridge Contracting has reached renewal eligibility with Example Funding, and a renewal could cover project materials or subcontractor costs before a job is billed. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
     },
   ])('accepts distinct, research-grounded %s outreach', async (industryCase) => {
     const research = {
@@ -830,7 +830,7 @@ describe('OpenAIResponsesService validation', () => {
       {
         ...DRAFT,
         emailBody: DRAFT.emailBody.replace(
-          'send over 3-4 months of business bank statements and I will see what is available',
+          'send over 3-4 months of business bank statements to rep@example.com and I will see what is available',
           'reply and I will see what is available',
         ),
       },
@@ -965,8 +965,8 @@ describe('OpenAIResponsesService validation', () => {
       generationCompleted({
         ...DRAFT,
         emailBody: DRAFT.emailBody.replace(
-          'please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
-          'send over 3-4 months of business bank statements and I will see what is available.',
+          'please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
+          'send over 3-4 months of business bank statements to rep@example.com and I will see what is available.',
         ),
       }),
       /must say please and thank you in both email and SMS/i,
@@ -975,7 +975,7 @@ describe('OpenAIResponsesService validation', () => {
       'an SMS without a thank you',
       generationCompleted({
         ...DRAFT,
-        smsBody: DRAFT.smsBody.replace(' Thank you for your time.', ''),
+        smsBody: DRAFT.smsBody.replace(' Thank you for considering it.', ''),
       }),
       /must say please and thank you in both email and SMS/i,
     ],
@@ -1001,10 +1001,48 @@ describe('OpenAIResponsesService validation', () => {
         ...DRAFT,
         emailBody: DRAFT.emailBody.replace(
           'If you are interested in additional capital, please send over',
-          'Thank you for taking a look, please send over',
+          'If it works for you, please send over',
         ),
       }),
       /"If you are interested in additional capital" in both email and SMS/i,
+    ],
+    [
+      'a stock "thank you for your time" in the email',
+      generationCompleted({
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace(
+          'Thank you for considering it.',
+          'Thank you for your time.',
+        ),
+      }),
+      /stock thank-you/i,
+    ],
+    [
+      'a stock "thanks for taking a look" in the SMS',
+      generationCompleted({
+        ...DRAFT,
+        smsBody: DRAFT.smsBody.replace(
+          'Thank you for considering it.',
+          'Thanks for taking a look.',
+        ),
+      }),
+      /stock thank-you/i,
+    ],
+    [
+      'an email that omits the representative email from the statement request',
+      generationCompleted({
+        ...DRAFT,
+        emailBody: DRAFT.emailBody.replace(' to rep@example.com', ''),
+      }),
+      /send bank statements to rep@example\.com in both email and SMS/i,
+    ],
+    [
+      'an SMS that omits the representative email from the statement request',
+      generationCompleted({
+        ...DRAFT,
+        smsBody: DRAFT.smsBody.replace(' to rep@example.com', ''),
+      }),
+      /send bank statements to rep@example\.com in both email and SMS/i,
     ],
     [
       'an SMS without the additional-capital lead-in',
@@ -1040,11 +1078,11 @@ describe('OpenAIResponsesService validation', () => {
       generationCompleted({
         ...DRAFT,
         emailBody: DRAFT.emailBody.replace(
-          'If you are interested in additional capital, please send over 3-4 months of business bank statements and I will see what is available. Thank you for your time.',
-          'Hope the wholesale season is going well, and thank you for your time; please enjoy the rest of the week.',
+          'If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com and I will see what is available. Thank you for considering it.',
+          'Hope the wholesale season is going well, and thank you for the work you put into the bakery; please enjoy the rest of the week.',
         ),
         smsBody:
-          'Good morning Ada, Example Bakery has renewal options with Example Funding. Thank you for your time, and please enjoy the rest of the week.',
+          'Good morning Ada, Example Bakery has renewal options with Example Funding. Thank you for the work you put into the bakery, and please enjoy the rest of the week.',
       }),
       /clear call to action/i,
     ],
@@ -1109,7 +1147,7 @@ describe('OpenAIResponsesService validation', () => {
       generationCompleted({
         ...DRAFT,
         smsBody:
-          'Good morning Ada, Example Bakery has renewal options with Example Funding. If you are interested in additional capital, please send over 3-4 months of business bank statements. Thank you.',
+          'Good morning Ada, Example Bakery has renewal options with Example Funding. If you are interested in additional capital, please send over 3-4 months of business bank statements to rep@example.com. Thank you for looking at this.',
       }),
       /SMS did not use any selected business research/i,
     ],

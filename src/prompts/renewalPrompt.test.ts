@@ -229,11 +229,16 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/SMS must begin with "Good morning Jordan,"/i);
     expect(prompt).toMatch(/do not use "Hi", "Hello", or "Hey" as the greeting/i);
     expect(prompt).toMatch(/include the word "please" in the bank-statement request/i);
-    expect(prompt).toMatch(/natural "thank you" in the body of both the email and the SMS/i);
-    expect(prompt).toMatch(/never write "thank you for taking a look"/i);
     expect(prompt).toMatch(
-      /must begin with the exact words "If you are interested in additional capital,"/i,
+      /natural, specific "thank you" in the body of both the email and the SMS/i,
     );
+    expect(prompt).toMatch(
+      /never write the stock phrases "Thank you for your time", "Thanks for your time", or "thank you for taking a look"/i,
+    );
+    expect(prompt).toMatch(
+      /must begin with the exact words "If you are interested in additional capital, please send over 3-4 months of business bank statements"/i,
+    );
+    expect(prompt).not.toContain('Statement destination');
     expect(prompt).toMatch(
       /never use em dashes or en dashes anywhere in emailSubject, emailBody, or smsBody/i,
     );
@@ -244,6 +249,25 @@ describe('buildRenewalPrompt', () => {
       /write the email and SMS in a warm and direct tone/i,
     );
     expect(generation({ tone: 'warm and direct' })).toContain('"tone": "warm and direct"');
+  });
+
+  it('directs bank statements to the representative email from Settings when one is set', () => {
+    const prompt = generation({
+      repProfile: { name: 'Rae', company: '1West', phone: '', email: 'rae@1west.com' },
+    });
+    expect(prompt).toMatch(
+      /must begin with the exact words "If you are interested in additional capital, please send over 3-4 months of business bank statements to rae@1west\.com"/i,
+    );
+    expect(prompt).toMatch(
+      /Statement destination: the merchant must be told to send the statements to rae@1west\.com \(representative\.email\) in both the email and the SMS/i,
+    );
+    expect(prompt).toMatch(
+      /Closing CTA: one short sentence that begins "If you are interested in additional capital, please send over 3-4 months of business bank statements to rae@1west\.com"/i,
+    );
+    expect(prompt).toMatch(
+      /SMS:.*business bank statements to rae@1west\.com" \(or a quick reply\) rather than a call/i,
+    );
+    expect(prompt).toMatch(/representative email belongs only inside the bank-statement sentence/i);
   });
 
   it('passes Settings custom instructions through as style-only guidance', () => {

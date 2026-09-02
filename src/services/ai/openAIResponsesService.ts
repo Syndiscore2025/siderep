@@ -131,7 +131,7 @@ const DRAFT_SCHEMA = {
       type: 'string',
       maxLength: 4_000,
       description:
-        'A copy-ready plain-text email: the supplied time-of-day greeting with the merchant first name, 1-2 sentences on the funding situation, a lead-in, 3-5 "- " bullets each tying one research-specific capital use to a revenue or cash-flow outcome, and a polite closing ask that begins "If you are interested in additional capital, please send over 3-4 months of business bank statements" with a thank you; no em dashes, citations, URLs, or call requests.',
+        'A copy-ready plain-text email: the supplied time-of-day greeting with the merchant first name, 1-2 sentences on the funding situation, a lead-in, 3-5 "- " bullets each tying one research-specific capital use to a revenue or cash-flow outcome, and a polite closing ask that begins "If you are interested in additional capital, please send over 3-4 months of business bank statements to <representative.email>" with a specific thank you (never "for your time"); no em dashes, citations, URLs, or call requests.',
     },
     smsBody: {
       type: 'string',
@@ -790,6 +790,7 @@ function greetingMatchesLocalTime(text: string, greeting: string, merchantFirstN
 
 const PLEASE = /\bplease\b/i;
 const THANK_YOU = /\bthank(?:s| you)\b/i;
+const STOCK_THANK_YOU = /\bthank(?:s| you) for (?:your time|taking a look)\b/i;
 const EM_OR_EN_DASH = /[\u2013\u2014]/;
 
 function usesManners(text: string): boolean {
@@ -833,6 +834,13 @@ function validateChannelDetails(
   }
   if (!usesManners(content.emailBody) || !usesManners(content.smsBody)) {
     return err(new Error('OpenAI outreach must say please and thank you in both email and SMS.'));
+  }
+  if (STOCK_THANK_YOU.test(content.emailBody) || STOCK_THANK_YOU.test(content.smsBody)) {
+    return err(
+      new Error(
+        'OpenAI used a stock thank-you ("for your time" / "for taking a look") instead of a specific one.',
+      ),
+    );
   }
   if (
     EM_OR_EN_DASH.test(content.emailSubject) ||
@@ -1005,6 +1013,18 @@ function validateOutreachStructure(
     return err(
       new Error(
         'OpenAI outreach must lead into the bank-statement request with "If you are interested in additional capital" in both email and SMS.',
+      ),
+    );
+  }
+  const repEmail = context.representative.email.trim().toLowerCase();
+  if (
+    repEmail &&
+    (!content.emailBody.toLowerCase().includes(repEmail) ||
+      !content.smsBody.toLowerCase().includes(repEmail))
+  ) {
+    return err(
+      new Error(
+        `OpenAI outreach must tell the merchant to send bank statements to ${context.representative.email.trim()} in both email and SMS.`,
       ),
     );
   }
