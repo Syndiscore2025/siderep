@@ -202,6 +202,14 @@ describe('buildRenewalMerchantContext', () => {
     });
     expect(context.lenderProfile).toBeNull();
     expect(context.sentEmailHistory.map((email) => email.subject)).toEqual(['Earlier', 'Later']);
+    expect(context.followUpTo).toBeNull();
+  });
+
+  it('carries the follow-up target email into the context', () => {
+    const followUpTo = { subject: 'Earlier', body: 'Earlier body', sentAt: '2026-08-01T00:00:00Z' };
+    expect(buildRenewalMerchantContext(request({}, { followUpTo }), RESEARCH).followUpTo).toEqual(
+      followUpTo,
+    );
   });
 
   it('handles single names and a two-part street/location address safely', () => {

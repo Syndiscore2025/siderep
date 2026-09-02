@@ -111,6 +111,8 @@ export interface RenewalMerchantContext {
   userNotes: string;
   representative: RenewalRepProfile;
   sentEmailHistory: RenewalSentEmailContext[];
+  /** The previously sent email this draft follows up on; null for first-touch outreach. */
+  followUpTo?: RenewalSentEmailContext | null;
   /** Time-of-day greeting resolved from the merchant's local time zone, e.g. "Good morning". */
   greeting: string;
   /** Writing tone from Settings → Prompts → Default tone. */
@@ -194,6 +196,8 @@ export interface RenewalResearchRequest {
   repProfile: RenewalRepProfile;
   outreachType: RenewalOutreachType;
   sentEmailHistory: RenewalSentEmailContext[];
+  /** When set, the draft is written as a follow-up to this previously sent email. */
+  followUpTo?: RenewalSentEmailContext | null;
   lenderProfiles?: LenderProfile[];
   /** Writing tone from Settings; defaults to "professional" when omitted. */
   tone?: string;

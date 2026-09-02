@@ -38,6 +38,7 @@ import type {
   RenewalEligibility,
   RenewalInput,
   RenewalOutreachType,
+  RenewalSentEmailRecord,
 } from '@/types';
 import { createId, toError } from '@/utils';
 
@@ -79,6 +80,8 @@ export interface RenewalContextValue {
   currentCycle: RenewalCycleRecord | null;
   outreachType: RenewalOutreachType;
   outreachTypeLocked: boolean;
+  /** The saved email the next draft will follow up on; null for first-touch outreach. */
+  followUpTarget: RenewalSentEmailRecord | null;
   historyStatus: RenewalHistoryStatus;
   historyLoading: boolean;
   isCopyingEmail: boolean;
@@ -95,6 +98,9 @@ export interface RenewalContextValue {
   readSalesforce: () => Promise<void>;
   research: () => Promise<void>;
   retry: () => Promise<void>;
+  /** Drafts a follow-up email and SMS to a previously copied email on the selected account. */
+  followUp: (emailId: string) => Promise<void>;
+  clearFollowUp: () => void;
   copyEmail: () => Promise<void>;
   openInGmail: () => Promise<void>;
   renewed: () => Promise<void>;
@@ -142,6 +148,7 @@ export function RenewalProvider({
   const [accountSearchQuery, setAccountSearchQuery] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [outreachType, setOutreachTypeState] = useState<RenewalOutreachType>('renewal');
+  const [followUpTarget, setFollowUpTarget] = useState<RenewalSentEmailRecord | null>(null);
   const [historyStatus, setHistoryStatus] = useState<RenewalHistoryStatus>({
     kind: 'idle',
     message: '',
@@ -219,6 +226,7 @@ export function RenewalProvider({
       setDraft(null);
       setDraftId(null);
       setShowAdditionalLender(false);
+      setFollowUpTarget(null);
     },
     [setInput, stopAsyncWork],
   );
@@ -288,81 +296,107 @@ export function RenewalProvider({
     }
   }, [extractionService, setInput]);
 
-  const research = useCallback(async () => {
-    researchAbort.current?.abort();
-    researchAbort.current = null;
-    const sequence = ++researchSequence.current;
-    const currentInput = inputRef.current;
-    const missingFields = [
-      ['business name', currentInput.businessName],
-      [
-        'business website, Google Maps link, or address',
-        resolveBusinessLocator(currentInput.businessLocator).locator,
-      ],
-      ['merchant first name', currentInput.merchantName],
-      ['current lender', currentInput.latestLender],
-    ].flatMap(([label, value]) => (value.trim() ? [] : [label]));
-    if (missingFields.length) {
-      setResearchPhase('error');
-      setResearchError(`Add the required details: ${missingFields.join(', ')}.`);
-      return;
-    }
-    if (!researchService.isConfigured()) {
-      setResearchPhase('error');
-      setResearchError('Renewal AI is not configured. Add an API key and model in Settings.');
-      return;
-    }
-
-    const controller = new AbortController();
-    researchAbort.current = controller;
-    setResearchPhase('researching');
-    setResearchError(null);
-    setDraft(null);
-    setDraftId(null);
-
-    try {
-      const result = await researchService.research(
-        {
-          input: currentInput,
-          eligibility,
-          lenderProfiles: settings.lenderProfiles,
-          repProfile: settings.repProfile,
-          tone: settings.prompts.defaultTone,
-          customInstructions: settings.prompts.customInstructions,
-          outreachType: currentCycle?.outreachType ?? outreachType,
-          sentEmailHistory: (currentCycle?.sentEmails ?? [])
-            .slice()
-            .sort((left, right) => Date.parse(left.copiedAt) - Date.parse(right.copiedAt))
-            .map((email) => ({
-              subject: email.subject,
-              body: email.body,
-              sentAt: email.copiedAt,
-            })),
-        },
-        controller.signal,
-      );
-      if (controller.signal.aborted || sequence !== researchSequence.current) return;
-      if (!result.ok) {
-        researchAbort.current = null;
+  const runResearch = useCallback(
+    async (followUpTo: RenewalSentEmailRecord | null) => {
+      researchAbort.current?.abort();
+      researchAbort.current = null;
+      const sequence = ++researchSequence.current;
+      const currentInput = inputRef.current;
+      const missingFields = [
+        ['business name', currentInput.businessName],
+        [
+          'business website, Google Maps link, or address',
+          resolveBusinessLocator(currentInput.businessLocator).locator,
+        ],
+        ['merchant first name', currentInput.merchantName],
+        ['current lender', currentInput.latestLender],
+      ].flatMap(([label, value]) => (value.trim() ? [] : [label]));
+      if (missingFields.length) {
         setResearchPhase('error');
-        setResearchError(result.error.message);
+        setResearchError(`Add the required details: ${missingFields.join(', ')}.`);
         return;
       }
-      researchAbort.current = null;
-      setDraft({
-        ...result.value,
-        emailSubject: applySubjectPrefix(settings.prompts.subjectPrefix, result.value.emailSubject),
-        emailBody: applyEmailSignature(result.value.emailBody, buildEmailSignature(settings)),
-      });
-      setDraftId(createId());
-      setResearchPhase('complete');
-    } catch (error) {
-      if (controller.signal.aborted || sequence !== researchSequence.current) return;
-      researchAbort.current = null;
-      setResearchPhase('error');
-      setResearchError(toError(error).message);
-    }
-  }, [currentCycle, eligibility, outreachType, researchService, settings]);
+      if (!researchService.isConfigured()) {
+        setResearchPhase('error');
+        setResearchError('Renewal AI is not configured. Add an API key and model in Settings.');
+        return;
+      }
+
+      const controller = new AbortController();
+      researchAbort.current = controller;
+      setResearchPhase('researching');
+      setResearchError(null);
+      setDraft(null);
+      setDraftId(null);
+
+      try {
+        const result = await researchService.research(
+          {
+            input: currentInput,
+            eligibility,
+            lenderProfiles: settings.lenderProfiles,
+            repProfile: settings.repProfile,
+            tone: settings.prompts.defaultTone,
+            customInstructions: settings.prompts.customInstructions,
+            outreachType: currentCycle?.outreachType ?? outreachType,
+            sentEmailHistory: (currentCycle?.sentEmails ?? [])
+              .slice()
+              .sort((left, right) => Date.parse(left.copiedAt) - Date.parse(right.copiedAt))
+              .map((email) => ({
+                subject: email.subject,
+                body: email.body,
+                sentAt: email.copiedAt,
+              })),
+            followUpTo: followUpTo
+              ? { subject: followUpTo.subject, body: followUpTo.body, sentAt: followUpTo.copiedAt }
+              : null,
+          },
+          controller.signal,
+        );
+        if (controller.signal.aborted || sequence !== researchSequence.current) return;
+        if (!result.ok) {
+          researchAbort.current = null;
+          setResearchPhase('error');
+          setResearchError(result.error.message);
+          return;
+        }
+        researchAbort.current = null;
+        setDraft({
+          ...result.value,
+          emailSubject: applySubjectPrefix(
+            settings.prompts.subjectPrefix,
+            result.value.emailSubject,
+          ),
+          emailBody: applyEmailSignature(result.value.emailBody, buildEmailSignature(settings)),
+        });
+        setDraftId(createId());
+        setResearchPhase('complete');
+      } catch (error) {
+        if (controller.signal.aborted || sequence !== researchSequence.current) return;
+        researchAbort.current = null;
+        setResearchPhase('error');
+        setResearchError(toError(error).message);
+      }
+    },
+    [currentCycle, eligibility, outreachType, researchService, settings],
+  );
+
+  const research = useCallback(() => runResearch(followUpTarget), [followUpTarget, runResearch]);
+
+  const followUp = useCallback(
+    async (emailId: string) => {
+      const email = selectedAccount?.cycles
+        .flatMap((cycle) => cycle.sentEmails)
+        .find((candidate) => candidate.id === emailId);
+      if (!email) return;
+      setFollowUpTarget(email);
+      setHistoryStatus({ kind: 'idle', message: '' });
+      await runResearch(email);
+    },
+    [runResearch, selectedAccount],
+  );
+
+  const clearFollowUp = useCallback(() => setFollowUpTarget(null), []);
 
   const deliverEmail = useCallback(
     async (delivery: RenewalDelivery) => {
@@ -542,6 +576,7 @@ export function RenewalProvider({
       currentCycle,
       outreachType,
       outreachTypeLocked: Boolean(currentCycle?.sentEmails.length),
+      followUpTarget,
       historyStatus,
       historyLoading: renewalHistory.isLoading,
       isCopyingEmail: copyPending || recordEmail.isPending,
@@ -558,6 +593,8 @@ export function RenewalProvider({
       readSalesforce,
       research,
       retry: research,
+      followUp,
+      clearFollowUp,
       copyEmail,
       openInGmail,
       renewed,
@@ -572,6 +609,7 @@ export function RenewalProvider({
       accountSearchResults,
       archiveCycle.isPending,
       clear,
+      clearFollowUp,
       clearHistory.isPending,
       clearSavedAccounts,
       copyEmail,
@@ -587,6 +625,8 @@ export function RenewalProvider({
       extractionError,
       extractionStatus,
       extractionWarnings,
+      followUp,
+      followUpTarget,
       input,
       historyStatus,
       openInGmail,

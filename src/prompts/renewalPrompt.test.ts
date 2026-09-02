@@ -284,6 +284,27 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).not.toContain('introduce yourself');
   });
 
+  it('adds follow-up rules and the target email only when following up', () => {
+    expect(generation()).not.toContain('FOLLOW-UP MODE');
+    const followUpTo = {
+      subject: 'Renewal options for Acme',
+      body: 'Good morning Jordan,\n\nEarlier body.',
+      sentAt: '2026-08-01T00:00:00Z',
+    };
+    const prompt = generation({ followUpTo });
+    expect(prompt).toContain('FOLLOW-UP MODE (required):');
+    expect(prompt).toContain(
+      'follow-up to the email in followUpTo (subject "Renewal options for Acme", sent 2026-08-01T00:00:00Z)',
+    );
+    expect(prompt).toMatch(
+      /do not repeat the wording, opening, lead-in, or bullets from followUpTo/i,
+    );
+    expect(prompt).toMatch(/keep the follow-up shorter than the original/i);
+    expect(prompt).toMatch(/emailSubject: make it read as a follow-up/i);
+    expect(prompt).toContain('"followUpTo": {');
+    expect(prompt).toContain('"subject": "Renewal options for Acme"');
+  });
+
   it('passes Settings custom instructions through as style-only guidance', () => {
     expect(generation()).not.toContain('Rep custom instructions');
     const prompt = generation({ customInstructions: ' Keep emails under 150 words. ' });

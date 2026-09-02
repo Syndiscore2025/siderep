@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 
-import { Badge, Card, ClockIcon, EmptyState, MailIcon } from '@/components/ui';
+import { Badge, Button, Card, ClockIcon, EmptyState, MailIcon } from '@/components/ui';
 import { useRenewal } from '@/hooks/useRenewal';
 import type { RenewalCycleRecord, RenewalSentEmailRecord } from '@/types';
 
@@ -10,22 +10,42 @@ function formatDate(iso: string): string {
 }
 
 function EmailRow({ email }: { email: RenewalSentEmailRecord }) {
+  const { followUp, followUpTarget, researchPhase } = useRenewal();
   const [open, setOpen] = useState(false);
   const bodyId = useId();
+  const subject = email.subject || '(no subject)';
+  const isTarget = followUpTarget?.id === email.id;
+  const researching = researchPhase === 'researching';
   return (
-    <li className="rounded-lg border border-edge bg-surface-2/40">
-      <button
-        type="button"
-        className="w-full px-3 py-2 text-left"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="block truncate text-xs font-medium text-content-primary">
-          {email.subject || '(no subject)'}
-        </span>
-        <span className="text-[11px] text-content-muted">Copied {formatDate(email.copiedAt)}</span>
-      </button>
+    <li
+      className={`rounded-lg border bg-surface-2/40 ${isTarget ? 'border-accent' : 'border-edge'}`}
+    >
+      <div className="flex items-start gap-2 pr-2">
+        <button
+          type="button"
+          className="min-w-0 flex-1 px-3 py-2 text-left"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="block truncate text-xs font-medium text-content-primary">{subject}</span>
+          <span className="text-[11px] text-content-muted">
+            Copied {formatDate(email.copiedAt)}
+            {isTarget ? ' · Following up' : ''}
+          </span>
+        </button>
+        <Button
+          size="sm"
+          variant={isTarget ? 'primary' : 'secondary'}
+          className="mt-1.5 shrink-0"
+          aria-label={`Follow up on ${subject}`}
+          disabled={researching}
+          loading={researching && isTarget}
+          onClick={() => void followUp(email.id)}
+        >
+          Follow up
+        </Button>
+      </div>
       {open && (
         <pre
           id={bodyId}

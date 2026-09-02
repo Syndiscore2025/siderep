@@ -212,6 +212,24 @@ export function RenewalInputCard() {
           </div>
         </details>
 
+        {renewal.followUpTarget && (
+          <div
+            role="status"
+            aria-label="Follow-up mode"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-[11px] text-content-secondary"
+          >
+            <span className="min-w-0 truncate">
+              Following up on{' '}
+              <span className="font-medium text-content-primary">
+                {renewal.followUpTarget.subject || '(no subject)'}
+              </span>
+            </span>
+            <Button variant="ghost" size="sm" onClick={renewal.clearFollowUp}>
+              Cancel follow-up
+            </Button>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -222,7 +240,7 @@ export function RenewalInputCard() {
           </Button>
           {!isResearching && !canRetry && (
             <Button variant="primary" size="sm" onClick={() => void renewal.research()}>
-              Go—Research &amp; Generate
+              {renewal.followUpTarget ? 'Go—Generate Follow-up' : 'Go—Research & Generate'}
             </Button>
           )}
           {isResearching && (

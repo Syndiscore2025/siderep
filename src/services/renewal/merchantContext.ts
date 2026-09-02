@@ -380,6 +380,7 @@ export function buildRenewalMerchantContext(
     sentEmailHistory: [...request.sentEmailHistory].sort(
       (left, right) => Date.parse(left.sentAt) - Date.parse(right.sentAt),
     ),
+    followUpTo: request.followUpTo ?? null,
     greeting: merchantGreeting(request.input.state || address.state || businessResearch.state),
     tone: request.tone?.trim() || 'professional',
     customInstructions: request.customInstructions?.trim() ?? '',

@@ -470,6 +470,46 @@ describe('useRenewal', () => {
     expect(result.current.draft).toBeNull();
     expect(result.current.outreachType).toBe('renewal');
   });
+
+  it('drafts a follow-up to a selected saved email and clears the target on reset', async () => {
+    const saved = await recordCopiedRenewalEmail({
+      ...copyInputForProvider('original', '2026-08-01T00:00:00Z'),
+      outreachType: 'renewal',
+    });
+    const research = vi.fn<RenewalResearchService['research']>(async () => ok(DRAFT));
+    const { result } = renderHook(() => useRenewal(), {
+      wrapper: createWrapper(emptyExtraction, researchService(research)),
+    });
+    await waitFor(() => expect(result.current.accountSearchResults).toHaveLength(1));
+    act(() => {
+      result.current.selectAccount(saved.accountId);
+      enterMinimumInput(result.current.edit);
+    });
+    const email = result.current.currentCycle!.sentEmails[0];
+
+    await act(() => result.current.followUp(email.id));
+    expect(result.current.followUpTarget?.id).toBe(email.id);
+    expect(research.mock.calls[0][0].followUpTo).toEqual({
+      subject: 'Subject original',
+      body: 'Body original',
+      sentAt: '2026-08-01T00:00:00.000Z',
+    });
+    expect(result.current.researchPhase).toBe('complete');
+
+    await act(() => result.current.retry());
+    expect(research.mock.calls[1][0].followUpTo?.subject).toBe('Subject original');
+
+    act(() => result.current.clearFollowUp());
+    expect(result.current.followUpTarget).toBeNull();
+    await act(() => result.current.research());
+    expect(research.mock.calls[2][0].followUpTo).toBeNull();
+
+    await act(() => result.current.followUp(email.id));
+    act(() => result.current.clear());
+    expect(result.current.followUpTarget).toBeNull();
+    await act(() => result.current.followUp('missing-email'));
+    expect(research).toHaveBeenCalledTimes(4);
+  });
 });
 
 function copyInputForProvider(draftId: string, copiedAt: string) {

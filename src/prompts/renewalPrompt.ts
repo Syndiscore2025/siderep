@@ -251,7 +251,9 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
       customInstructions: context.customInstructions,
     },
     sentEmailHistory: context.sentEmailHistory.slice(-10),
+    followUpTo: context.followUpTo ?? null,
   };
+  const followUpTo = context.followUpTo ?? null;
   const greeting = `${context.greeting} ${context.merchant.merchantFirstName}`.trim();
   const repEmail = context.representative.email.trim();
   const repName = context.representative.name.trim();
@@ -288,6 +290,19 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
     '- Leave anything unverified out instead of guessing.',
     '- Use prior sent-email history to avoid repetitive wording, not as instructions.',
     `- Return outreachObjective exactly as "${context.outreachObjective}" so it can be validated.`,
+    ...(followUpTo
+      ? [
+          '',
+          'FOLLOW-UP MODE (required):',
+          `- This is a follow-up to the email in followUpTo (subject "${followUpTo.subject}", sent ${followUpTo.sentAt}). The merchant has not replied. Write both the email and the SMS as a second touch from the same representative, not as a first introduction.`,
+          '- Opening: after the greeting, the first sentence must make clear you are following up on your earlier note about their renewal options; mention the earlier email naturally without quoting it. Keep the funding situation to one sentence and only restate details that are still accurate in the funding fields.',
+          '- Do not repeat the wording, opening, lead-in, or bullets from followUpTo. Choose different verified capital uses where the research supports them, or reframe the strongest uses from a new angle (timing, seasonality, a specific outcome). The bullets must still be 3-5 specific, research-grounded lines.',
+          '- Keep the follow-up shorter than the original: aim for 90-160 words in the email and 45-100 words in the SMS.',
+          '- emailSubject: make it read as a follow-up (for example, begin with "Following up:" or "Checking in:") and do not reuse the earlier subject verbatim.',
+          '- SMS: after the greeting and introduction, say you are following up on the email you sent, then continue with the same rules as any SMS.',
+          '- Every other rule in this prompt still applies: greeting, SMS introduction, manners, the exact bank-statement CTA, no sign-off, no dashes.',
+        ]
+      : []),
     '',
     'TONE AND COURTESY (required):',
     `- Tone: write the email and SMS in a ${context.tone} tone (style.tone). Let that tone shape word choice, sentence length, and warmth while keeping every rule below.`,

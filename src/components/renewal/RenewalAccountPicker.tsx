@@ -47,6 +47,7 @@ export function RenewalAccountPicker() {
           value={renewal.accountSearchQuery}
           placeholder="Search merchant, business, account, or DBA"
           onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
           onChange={(event) => {
             renewal.setAccountSearchQuery(event.target.value);
             setOpen(true);

@@ -283,6 +283,58 @@ describe('RenewalPage', () => {
     expect(saved.accountId).toBeTruthy();
   });
 
+  it('closes the account list when focus leaves the search box', async () => {
+    await recordCopiedRenewalEmail({
+      identity: { merchantName: 'Dismiss Merchant' },
+      outreachType: 'renewal',
+      draftId: 'dismiss-draft',
+      subject: 'Dismiss subject',
+      body: 'Dismiss body',
+    });
+    renderPage();
+    const combobox = screen.getByRole('combobox', { name: 'Find an account' });
+    fireEvent.focus(combobox);
+    await screen.findByRole('option', { name: /Dismiss Merchant/i });
+    fireEvent.blur(combobox);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(combobox).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('drafts a follow-up from a saved email and lets the rep cancel follow-up mode', async () => {
+    const saved = await recordCopiedRenewalEmail({
+      identity: { merchantName: 'Follow Merchant', businessName: 'Follow Business' },
+      outreachType: 'renewal',
+      draftId: 'follow-draft',
+      subject: 'Original subject',
+      body: 'Original body',
+      copiedAt: '2026-08-01T00:00:00Z',
+    });
+    const research = vi.fn<RenewalResearchService['research']>(async () => ok(DRAFT));
+    renderPage({ isConfigured: () => true, research });
+    const combobox = screen.getByRole('combobox', { name: 'Find an account' });
+    fireEvent.focus(combobox);
+    await screen.findByRole('option', { name: /Follow Merchant/i });
+    fireEvent.keyDown(combobox, { key: 'Enter' });
+    enterMinimumInput();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Follow up on Original subject' }));
+    await screen.findByRole('textbox', { name: 'Subject' });
+    expect(research.mock.calls[0][0].followUpTo).toEqual({
+      subject: 'Original subject',
+      body: 'Original body',
+      sentAt: '2026-08-01T00:00:00.000Z',
+    });
+    expect(screen.getByRole('status', { name: 'Follow-up mode' })).toHaveTextContent(
+      'Following up on Original subject',
+    );
+    expect(screen.getByRole('button', { name: 'Go—Generate Follow-up' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel follow-up' }));
+    expect(screen.queryByRole('status', { name: 'Follow-up mode' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Go—Research & Generate' })).toBeInTheDocument();
+    expect(saved.accountId).toBeTruthy();
+  });
+
   it('confirms Renewed, delete, and clear actions without creating an empty cycle', async () => {
     const saved = await recordCopiedRenewalEmail({
       identity: { merchantName: 'Lifecycle Merchant' },
