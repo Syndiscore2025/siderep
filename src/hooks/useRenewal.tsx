@@ -328,6 +328,7 @@ export function RenewalProvider({
           lenderProfiles: settings.lenderProfiles,
           repProfile: settings.repProfile,
           tone: settings.prompts.defaultTone,
+          customInstructions: settings.prompts.customInstructions,
           outreachType: currentCycle?.outreachType ?? outreachType,
           sentEmailHistory: (currentCycle?.sentEmails ?? [])
             .slice()

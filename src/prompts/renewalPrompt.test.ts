@@ -238,6 +238,16 @@ describe('buildRenewalPrompt', () => {
     expect(generation({ tone: 'warm and direct' })).toContain('"tone": "warm and direct"');
   });
 
+  it('passes Settings custom instructions through as style-only guidance', () => {
+    expect(generation()).not.toContain('Rep custom instructions');
+    const prompt = generation({ customInstructions: ' Keep emails under 150 words. ' });
+    expect(prompt).toContain(
+      '- Rep custom instructions (style.customInstructions): "Keep emails under 150 words."',
+    );
+    expect(prompt).toMatch(/never override the verification, funding-accuracy, structure/i);
+    expect(prompt).toContain('"customInstructions": "Keep emails under 150 words."');
+  });
+
   it('resolves the greeting from the merchant time zone, not the rep clock', () => {
     vi.setSystemTime(new Date('2026-09-02T22:30:00Z'));
     expect(generation()).toMatch(/"Good evening Jordan,"/);

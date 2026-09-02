@@ -382,5 +382,6 @@ export function buildRenewalMerchantContext(
     ),
     greeting: merchantGreeting(request.input.state || address.state || businessResearch.state),
     tone: request.tone?.trim() || 'professional',
+    customInstructions: request.customInstructions?.trim() ?? '',
   };
 }

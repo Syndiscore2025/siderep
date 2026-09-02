@@ -282,7 +282,12 @@ describe('useRenewal', () => {
     await saveSettings({
       ...DEFAULT_SETTINGS,
       repProfile: { name: 'Rae', company: '1West', phone: '555-0100', email: 'rae@1west.example' },
-      prompts: { ...DEFAULT_SETTINGS.prompts, subjectPrefix: '1West - ', defaultTone: 'warm' },
+      prompts: {
+        ...DEFAULT_SETTINGS.prompts,
+        subjectPrefix: '1West - ',
+        defaultTone: 'warm',
+        customInstructions: 'Keep it short.',
+      },
     });
     const open = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window);
     const research = vi
@@ -302,6 +307,7 @@ describe('useRenewal', () => {
     });
     await act(() => result.current.renewal.research());
     expect(research.mock.calls[0][0].tone).toBe('warm');
+    expect(research.mock.calls[0][0].customInstructions).toBe('Keep it short.');
     expect(result.current.renewal.draft?.emailSubject).toBe('1West - Renewal options');
     expect(result.current.renewal.draft?.emailBody).toBe(
       `${DRAFT.emailBody}\n\nBest regards,\nRae\n1West\n555-0100\nrae@1west.example`,

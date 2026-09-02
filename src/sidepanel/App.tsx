@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header';
 import type { View } from '@/components/layout/Header';
 import { RenewalProvider } from '@/hooks/useRenewal';
 import { SessionProvider } from '@/hooks/useSession';
+import { useTheme } from '@/hooks/useTheme';
 import { AssistantPage } from '@/pages/AssistantPage';
 import { BulkPage } from '@/pages/BulkPage';
 import { EmailPage } from '@/pages/EmailPage';
@@ -14,6 +15,7 @@ import { cn } from '@/utils';
 export function App({ platform = 'extension' }: { platform?: 'extension' | 'web' }) {
   const [view, setView] = useState<View>('renewal');
   const web = platform === 'web';
+  useTheme();
 
   return (
     <SessionProvider>

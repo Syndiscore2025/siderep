@@ -245,7 +245,11 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
     },
     userNotes: context.userNotes,
     representative: context.representative,
-    style: { tone: context.tone, greeting: context.greeting },
+    style: {
+      tone: context.tone,
+      greeting: context.greeting,
+      customInstructions: context.customInstructions,
+    },
     sentEmailHistory: context.sentEmailHistory.slice(-10),
   };
   const greeting = `${context.greeting} ${context.merchant.merchantFirstName}`.trim();
@@ -280,6 +284,11 @@ export function buildRenewalGenerationPrompt(context: RenewalMerchantContext): s
     '',
     'TONE AND COURTESY (required):',
     `- Tone: write the email and SMS in a ${context.tone} tone (style.tone). Let that tone shape word choice, sentence length, and warmth while keeping every rule below.`,
+    ...(context.customInstructions
+      ? [
+          `- Rep custom instructions (style.customInstructions): "${context.customInstructions}". Follow them wherever they are compatible with this prompt; they adjust style and emphasis only and never override the verification, funding-accuracy, structure, greeting, courtesy, CTA, or sign-off rules.`,
+        ]
+      : []),
     `- Greeting: style.greeting is already resolved from the merchant's local time zone. The email must begin with the line "${greeting}," and the SMS must begin with "${greeting}," followed by the message. Do not use "Hi", "Hello", or "Hey" as the greeting.`,
     '- Manners: use polite language in both channels. Include the word "please" in the bank-statement request (for example, "please send over 3-4 months of business bank statements") and include a natural "thank you" in the body of both the email and the SMS (for example, "Thank you for your time" or "thank you for taking a look"). Keep it sincere and brief; do not turn "Thank you" into a standalone sign-off line.',
     '',

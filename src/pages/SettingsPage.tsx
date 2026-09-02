@@ -321,7 +321,10 @@ export function SettingsPage() {
 
             <Card title="AI Behavior">
               <div className="space-y-3">
-                <Field label={`Temperature — ${form.ai.temperature.toFixed(1)}`}>
+                <Field
+                  label={`Temperature — ${form.ai.temperature.toFixed(1)}`}
+                  hint="Creativity for the Assistant chat and Salesforce email drafts. The Renewal model uses reasoning effort instead."
+                >
                   <input
                     type="range"
                     min={0}
@@ -332,7 +335,10 @@ export function SettingsPage() {
                     className="w-full accent-(--color-accent)"
                   />
                 </Field>
-                <Field label="Reasoning effort">
+                <Field
+                  label="Reasoning effort"
+                  hint="How hard the Renewal model thinks during research and drafting. Applies to GPT-5 and o-series models."
+                >
                   <Select
                     value={form.ai.reasoningEffort}
                     onChange={(e) =>
@@ -346,7 +352,10 @@ export function SettingsPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Verbosity">
+                <Field
+                  label="Verbosity"
+                  hint="Length of Renewal model output. Applies to GPT-5 and o-series models."
+                >
                   <Select
                     value={form.ai.verbosity}
                     onChange={(e) => patch('ai', { verbosity: e.target.value as AIVerbosity })}
@@ -358,7 +367,10 @@ export function SettingsPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Max output tokens">
+                <Field
+                  label="Max output tokens"
+                  hint="Upper bound for each Renewal research and drafting call."
+                >
                   <Input
                     type="number"
                     min={1}
@@ -420,7 +432,7 @@ export function SettingsPage() {
                 </Field>
                 <Field
                   label="Custom instructions"
-                  hint="Extra guidance added to every conversation."
+                  hint="Extra guidance added to every Assistant conversation and every generated Renewal email/SMS draft. Style and emphasis only; it cannot override verification, structure, or CTA rules."
                 >
                   <Textarea
                     rows={3}

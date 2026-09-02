@@ -10,11 +10,15 @@ export function Field({
   hint?: string;
   children: ReactNode;
 }) {
+  // The hint sits outside the <label> so it never becomes part of the
+  // control's accessible name.
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-content-secondary">{label}</span>
-      {children}
+    <div className="block">
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium text-content-secondary">{label}</span>
+        {children}
+      </label>
       {hint && <span className="mt-1 block text-[11px] text-content-muted">{hint}</span>}
-    </label>
+    </div>
   );
 }

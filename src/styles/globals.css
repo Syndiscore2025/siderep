@@ -93,6 +93,39 @@
   }
 }
 
+/*
+ * Light palette. `useTheme` writes the resolved Settings → Appearance → Theme
+ * onto `<html data-theme>`; every utility above reads these tokens, so this
+ * block is the only place the light variant lives.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-surface-0: #f5f6fa;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f0f2f7;
+  --color-surface-3: #e7eaf1;
+
+  --color-content-primary: #151827;
+  --color-content-secondary: #4b5268;
+  --color-content-muted: #7d849a;
+
+  --color-edge: #dfe3ec;
+  --color-edge-strong: #c7cdda;
+
+  --color-accent-soft: rgb(99 102 241 / 10%);
+
+  --color-success: #0f9f6e;
+  --color-warning: #b7791f;
+  --color-danger: #d6455f;
+  --color-danger-soft: rgb(214 69 95 / 10%);
+
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 8%);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 10%);
+  --shadow-lg: 0 12px 32px -8px rgb(15 23 42 / 14%);
+  --shadow-glow: 0 0 0 1px rgb(99 102 241 / 30%), 0 8px 24px -6px rgb(99 102 241 / 18%);
+}
+
 @layer base {
   html,
   body,

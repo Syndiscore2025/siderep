@@ -115,6 +115,8 @@ export interface RenewalMerchantContext {
   greeting: string;
   /** Writing tone from Settings → Prompts → Default tone. */
   tone: string;
+  /** Rep guidance from Settings → Prompts → Custom instructions; empty when unset. */
+  customInstructions: string;
 }
 
 export interface RenewalRepProfile {
@@ -195,6 +197,8 @@ export interface RenewalResearchRequest {
   lenderProfiles?: LenderProfile[];
   /** Writing tone from Settings; defaults to "professional" when omitted. */
   tone?: string;
+  /** Free-form rep guidance from Settings applied to every generated draft. */
+  customInstructions?: string;
 }
 
 export const EMPTY_RENEWAL_INPUT: RenewalInput = {

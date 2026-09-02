@@ -137,7 +137,13 @@ describe('buildRenewalMerchantContext', () => {
       });
       expect(
         buildRenewalMerchantContext(request({}, { tone: ' friendly ' }), RESEARCH),
-      ).toMatchObject({ greeting: 'Good afternoon', tone: 'friendly' });
+      ).toMatchObject({ greeting: 'Good afternoon', tone: 'friendly', customInstructions: '' });
+      expect(
+        buildRenewalMerchantContext(
+          request({}, { customInstructions: ' Mention our fast turnaround. ' }),
+          RESEARCH,
+        ),
+      ).toMatchObject({ customInstructions: 'Mention our fast turnaround.' });
       expect(
         buildRenewalMerchantContext(
           request({ businessAddress: '', state: 'FL' }, { tone: '' }),

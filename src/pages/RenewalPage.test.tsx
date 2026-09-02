@@ -84,7 +84,7 @@ describe('RenewalPage', () => {
     const locator = screen.getByRole('textbox', {
       name: 'Business Website / Google Maps / Address',
     });
-    expect(locator.closest('label')?.parentElement).toHaveClass('sm:col-span-2');
+    expect(locator.closest('label')?.parentElement?.parentElement).toHaveClass('sm:col-span-2');
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Merchant first name' }), {
       target: { value: 'Persistent Merchant' },
