@@ -249,6 +249,29 @@ describe('OpenAIResponsesService two-stage contract', () => {
     if (result.ok) expect(result.value.emailSubject).toBe('Bakery renewal');
   });
 
+  it('generates without a paid-in percentage and rejects a draft that invents one', async () => {
+    const request: RenewalResearchRequest = {
+      ...REQUEST,
+      input: { ...REQUEST.input, percentagePaid: '' },
+    };
+    workflow();
+    const accepted = await service().research(request);
+    expect(accepted.ok).toBe(true);
+    vi.restoreAllMocks();
+
+    workflow(
+      jsonResponse(researchCompleted()),
+      jsonResponse(
+        generationCompleted({ ...DRAFT, emailBody: `${DRAFT.emailBody} You are 55% paid in.` }),
+      ),
+    );
+    const rejected = await service().research(request);
+    expect(rejected.ok).toBe(false);
+    expect(!rejected.ok && rejected.error.message).toMatch(
+      /paid-in percentage that was not supplied/i,
+    );
+  });
+
   it('regenerates a draft that the model marks generic before returning it', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

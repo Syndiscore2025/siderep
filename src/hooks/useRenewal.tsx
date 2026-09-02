@@ -298,7 +298,6 @@ export function RenewalProvider({
       ],
       ['merchant first name', currentInput.merchantName],
       ['current lender', currentInput.latestLender],
-      ['paid-in percentage', currentInput.percentagePaid],
     ].flatMap(([label, value]) => (value.trim() ? [] : [label]));
     if (missingFields.length) {
       setResearchPhase('error');

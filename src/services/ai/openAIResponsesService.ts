@@ -813,15 +813,18 @@ function validateChannelDetails(
     return err(new Error('OpenAI used the representative name as the merchant greeting.'));
   }
   const paidInMatch = context.funding.paidInPercentage.match(/[0-9]{1,3}(?:\.[0-9]+)?/);
-  if (paidInMatch) {
-    const paidInMentions = [content.emailBody, content.smsBody]
+  const paidInMentions = [
+    ...[content.emailBody, content.smsBody]
       .join('\n')
       .matchAll(
         /(?:([0-9]{1,3}(?:\.[0-9]+)?)\s*%\s*paid(?:[-\s]*in)?|paid(?:[-\s]*in)?[^0-9]{0,12}([0-9]{1,3}(?:\.[0-9]+)?)\s*%)/gi,
-      );
-    if ([...paidInMentions].some((match) => (match[1] ?? match[2]) !== paidInMatch[0])) {
-      return err(new Error('OpenAI used an incorrect paid-in percentage.'));
-    }
+      ),
+  ];
+  if (!paidInMatch && paidInMentions.length) {
+    return err(new Error('OpenAI stated a paid-in percentage that was not supplied.'));
+  }
+  if (paidInMatch && paidInMentions.some((match) => (match[1] ?? match[2]) !== paidInMatch[0])) {
+    return err(new Error('OpenAI used an incorrect paid-in percentage.'));
   }
   const suppliedAmounts = suppliedMoneyValues(context);
   const mentionedAmounts = [content.emailBody, content.smsBody]

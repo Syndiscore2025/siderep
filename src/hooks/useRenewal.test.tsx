@@ -81,7 +81,6 @@ function enterMinimumInput(edit: (field: keyof RenewalInput, value: string) => v
   edit('businessLocator', '42 Market Street, Denver, CO 80202');
   edit('merchantName', 'Avery');
   edit('latestLender', 'Example Capital');
-  edit('percentagePaid', '50%');
 }
 
 describe('useRenewal', () => {
@@ -128,7 +127,7 @@ describe('useRenewal', () => {
     expect(result.current.extractionStatus).toBe('success');
   });
 
-  it('requires the five minimum generation inputs before research', async () => {
+  it('requires the four minimum generation inputs before research', async () => {
     const research = vi.fn<RenewalResearchService['research']>();
     const { result } = renderHook(() => useRenewal(), {
       wrapper: createWrapper(emptyExtraction, researchService(research)),
@@ -137,10 +136,11 @@ describe('useRenewal', () => {
     await act(() => result.current.research());
 
     expect(research).not.toHaveBeenCalled();
-    expect(result.current.researchError).toMatch(/business name.*paid-in percentage/i);
+    expect(result.current.researchError).toMatch(/business name.*current lender\.$/i);
+    expect(result.current.researchError).not.toMatch(/paid-in/i);
   });
 
-  it('accepts the five minimum inputs and resolves an address locator for research', async () => {
+  it('accepts the minimum inputs without a paid-in percentage and resolves an address locator for research', async () => {
     const research = vi.fn<RenewalResearchService['research']>(async () => ok(DRAFT));
     const { result } = renderHook(() => useRenewal(), {
       wrapper: createWrapper(emptyExtraction, researchService(research)),
@@ -153,6 +153,7 @@ describe('useRenewal', () => {
     expect(research.mock.calls[0][0].input).toMatchObject({
       businessAddress: '42 Market Street, Denver, CO 80202',
       businessName: 'Acme',
+      percentagePaid: '',
       website: '',
     });
     expect(result.current.researchPhase).toBe('complete');

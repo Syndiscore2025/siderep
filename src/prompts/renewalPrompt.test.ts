@@ -246,6 +246,12 @@ describe('buildRenewalPrompt', () => {
     expect(prompt).toMatch(/never promise or guarantee approval/i);
   });
 
+  it('forbids stating a paid-in percentage when none is supplied', () => {
+    const prompt = generation();
+    expect(prompt).toMatch(/paidInPercentage is blank.*do not state, estimate, or imply/i);
+    expect(prompt).toContain('"paidInPercentage": ""');
+  });
+
   it('uses customer-facing lender benefits but excludes internal lender guidance', () => {
     const prompt = generation({
       input: { ...renewal().input, latestLender: 'PEAC', percentagePaid: '50%' },

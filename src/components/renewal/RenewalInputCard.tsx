@@ -39,7 +39,12 @@ const REQUIRED_FIELDS: Array<{
     hint: 'Optional. Prefills the recipient when you open the draft in Gmail.',
   },
   { key: 'latestLender', label: 'Current lender' },
-  { key: 'percentagePaid', label: 'Paid in', placeholder: '50%' },
+  {
+    key: 'percentagePaid',
+    label: 'Paid in',
+    placeholder: '50%',
+    hint: 'Optional. Leave blank if unknown; eligibility then follows the toggle below.',
+  },
 ];
 
 const FUNDING_DETAIL_FIELDS: Array<{
